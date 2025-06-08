@@ -1,0 +1,55 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 任务：【DevOps】后端 CI/CD 与自动化部署
+
+你好，Cursor。现在我们需要为我们的`WebSpark.club`后端项目（Strapi）建立一套工业级的持续集成与持续部署（CI/CD）流程。这将是保障我们开发效率和服务稳定性的基石。
+
+## 1. 目标与需求
+- **触发条件:** 当有新的代码被`push`或`merge`到`main`分支时，自动触发整个流程。
+- **核心流程:**
+  1. **环境准备:** 设置Node.js环境。
+  2. **依赖安装与测试:** 安装项目依赖并运行测试（如果配置了测试）。
+  3. **构建Docker镜像:** 基于项目中的`Dockerfile`，构建一个新的Strapi应用镜像。
+  4. **推送到镜像仓库:** 将构建好的镜像标记版本并推送到一个容器镜像仓库（我们将使用**GitHub Container Registry**）。
+  5. **远程部署:** 通过SSH安全地连接到我们的生产服务器，并执行命令来拉取新镜像、重启服务。
+
+## 2. 技术实现细节
+- **工具:** 我们将使用 **GitHub Actions**。
+- **`Dockerfile`:**
+  - 请先为我们的Strapi项目生成一个优化的、多阶段构建的`Dockerfile`。
+  - **第一阶段 (Build Stage):** 使用一个包含完整Node.js开发环境的镜像，安装`devDependencies`，运行`yarn build`来构建Strapi后台UI。
+  - **第二阶段 (Production Stage):** 使用一个轻量级的Node.js生产环境镜像（如`node:18-alpine`），只安装`dependencies`，并从第一阶段复制出构建好的`dist`和`.cache`目录，以及`node_modules`和`package.json`等。
+  - **最终命令:** `CMD ["yarn", "start"]`
+
+- **GitHub Actions Workflow 文件:**
+  - **文件路径:** `.github/workflows/deploy-backend.yml`
+  - **环境变量与Secrets:**
+    - `DOCKER_IMAGE_NAME`: 定义镜像名称，例如`ghcr.io/你的GitHub用户名/webspark-backend`。
+    - **Secrets:** 我们需要在GitHub仓库的`Settings -> Secrets and variables -> Actions`中配置以下secrets：
+      - `GH_PAT`: 一个具有`write:packages`权限的GitHub Personal Access Token，用于登录GitHub Container Registry。
+      - `DEPLOY_HOST`: 生产服务器的IP地址。
+      - `DEPLOY_USERNAME`: 登录服务器的用户名。
+      - `DEPLOY_KEY`: 用于SSH免密登录的私钥。
+  - **Workflow Jobs:**
+    - **`build_and_push_image` Job:**
+      - 使用`actions/checkout`检出代码。
+      - 使用`docker/login-action`登录到`ghcr.io`。
+      - 使用`docker/build-push-action`来构建并推送镜像。镜像的`tag`应该包含`latest`和当前的`github.sha`（提交哈希），以便追踪。
+    - **`deploy_to_server` Job:**
+      - **依赖:** `needs: build_and_push_image`，确保上一步成功后才执行。
+      - 使用一个配置好的SSH Action（如`appleboy/ssh-action`）。
+      - **执行脚本 (script):**
+        - `cd /path/to/your/project/on/server` (进入服务器上的项目目录)
+        - `docker-compose pull` (拉取刚刚推送的最新镜像)
+        - `docker-compose up -d --force-recreate` (用新镜像平滑地重启服务)
+        - `docker image prune -f` (可选，清理旧的、未使用的镜像以节省空间)
+
+## 3. 注意事项
+- **安全性:** SSH私钥和所有密码、Token都必须存储在GitHub Secrets中，严禁在workflow文件中明文出现。
+- **`docker-compose.yml`:** 请确保服务器上的`docker-compose.yml`文件引用的镜像是我们定义的`DOCKER_IMAGE_NAME:latest`。
+- **回滚策略:** 虽然这个流程很可靠，但作为思考，我们需要知道如果部署失败，最快的恢复方式是手动SSH到服务器，将`docker-compose.yml`中的镜像tag改回上一个可用的版本，然后重启服务。
+
+请为我生成优化的`Dockerfile`和完整的`.github/workflows/deploy-backend.yml`文件。

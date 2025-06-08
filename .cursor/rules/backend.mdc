@@ -1,0 +1,57 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 任务：【后端】实现自定义核心业务逻辑API
+
+你好，Cursor。我们已经用Strapi构建了基础的数据模型。现在，我们需要注入`WebSpark.club`的灵魂——那些使它不仅仅是一个数据表的自定义业务逻辑。请为我实现以下三个核心API。
+
+## 1. 混合排序列表 API
+- **目标:** 创建一个能返回按我们自定义热度算法排序的作品列表的API。
+- **路由:** `GET /api/websites/sorted-list`
+- **实现方式:**
+  1. **创建自定义路由:** 在`src/api/website/routes/`目录下，添加一个新的路由配置文件，定义上述路由。
+  2. **创建自定义控制器:** 在`src/api/website/controllers/`目录下，创建一个新的控制器文件。
+  3. **控制器逻辑:**
+     - 接收分页参数，如`page`和`pageSize`。
+     - **核心算法:** 使用Strapi的查询引擎或原生SQL查询，你需要计算每个作品的分数。公式为 `Score = (likeCount * 5) + (unix_timestamp(createdAt) / 10000)`。注意：`createdAt`是时间戳，需要转换为数字进行计算。对于PostgreSQL，你可以使用`EXTRACT(EPOCH FROM "createdAt")`。
+     - **查询条件:** 确保只查询`status = 'APPROVED'`且`deletedAt IS NULL`的作品。
+     - **排序:** 按计算出的`Score`降序排列 (`ORDER BY Score DESC`)。
+     - **返回数据:** 返回经过排序和分页处理后的作品列表，同时包含分页信息（总页数、当前页等）。确保`populate`了`author`和`tags`关联数据。
+
+## 2. 点赞/取消点赞 API
+- **目标:** 实现一个接口，让登录用户可以对作品进行点赞或取消点赞。这是一个幂等操作。
+- **路由:** `PUT /api/websites/:id/toggle-like`
+- **实现方式:**
+  1. **创建自定义路由和控制器**，同上。
+  2. **控制器逻辑:**
+     - **认证:** 此路由必须是**私有的**。首先，从请求上下文 `ctx.state.user` 获取当前登录的用户信息。如果用户未登录，返回401或403错误。
+     - **查找关联:** 查询一个中间表或使用Strapi的关系API，检查当前用户（`userId`）是否已经点赞了目标作品（`websiteId`）。
+     - **条件判断:**
+       - **如果已点赞:**
+         - 从关联关系中移除这条记录。
+         - 将`websites`表对应记录的`likeCount`减1。注意要处理并发问题，最好使用数据库的原子操作。
+         - 返回成功信息，并告知是“取消点赞”。
+       - **如果未点赞:**
+         - 在关联关系中添加一条新记录。
+         - 将`websites`表对应记录的`likeCount`加1。
+         - 返回成功信息，并告知是“点赞成功”。
+     - **数据一致性:** 确保对关联表的操作和对`likeCount`字段的更新在一个事务中完成，或者有机制保证最终一致性。
+
+## 3. 举报 API
+- **目标:** 提供一个公共接口，让任何人都可以提交对某个作品的举报。
+- **路由:** `POST /api/reports`
+- **实现方式:**
+  1. **创建新的`Report`内容类型:**
+     - **字段:** `reason` (枚举: 'SPAM', 'INAPPROPRIATE_CONTENT', 'COPYRIGHT_INFRINGEMENT', 'BROKEN_LINK', 'OTHER')，`details` (text, 可选)，`status` (枚举: 'OPEN', 'CLOSED', default: 'OPEN')。
+     - **关联:** 与`Website`建立`manyToOne`关系，与`User`（举报人，可选）建立`manyToOne`关系。
+  2. **创建公共可访问的Controller:**
+     - **路由:** `POST /api/reports`。
+     - **控制器逻辑:**
+       - **数据校验:** 验证请求体中是否包含`websiteId`和`reason`。
+       - **创建记录:** 在`Report`表中创建一条新记录，关联到对应的作品。如果用户已登录，也关联到举报人。
+       - **触发通知 (可选，V2功能):** 可以设计一个机制，比如当一个作品的`OPEN`状态举报超过一定数量时，向管理员发送邮件通知。
+       - **返回信息:** 返回“举报已收到，感谢您的反馈”。
+
+请为以上三个功能，生成所有必要的路由、控制器、服务和内容类型定义文件，并添加清晰的注释来解释关键逻辑。

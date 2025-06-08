@@ -1,0 +1,76 @@
+# 设计系统与UI规范
+
+本文件定义了`WebSpark.club`项目全站统一的视觉风格和UI组件规范。所有前端开发都应严格遵守此设计系统，以确保品牌一致性和用户体验的连贯性。
+
+## 1. 颜色系统 (Color Palette)
+
+我们使用Tailwind CSS的默认调色板作为基础。
+
+- **主色 (Primary):** 用于关键操作按钮、链接和高亮元素。
+  - **基础:** `blue-600`
+  - **悬浮/交互:** `blue-700`
+- **次色 (Secondary):** 用于次要信息、边框和背景。
+  - **基础:** `slate-500`
+  - **文字:** `slate-700` (亮色模式) / `slate-300` (暗色模式)
+- **背景色 (Background):**
+  - **亮色模式 (Light Mode):** `slate-50`
+  - **暗色模式 (Dark Mode):** `slate-900`
+- **反馈色 (Feedback Colors):**
+  - **成功 (Success):** `green-500`
+  - **警告 (Warning):** `yellow-500`
+  - **错误 (Error):** `red-600`
+  - **信息 (Info):** `sky-500`
+
+## 2. 字体排印 (Typography)
+
+- **字体:** 全站使用系统默认的无衬线字体 (sans-serif)。
+- **标题 (Headings):**
+  - `<h1>`: `text-4xl font-bold tracking-tight`
+  - `<h2>`: `text-3xl font-bold tracking-tight`
+  - `<h3>`: `text-2xl font-semibold`
+- **正文 (Body):**
+  - `<p>`: `text-base text-slate-700 dark:text-slate-300`
+  - `line-height`: `leading-relaxed` (1.625)
+- **链接 (Links):**
+  - `<a>`: `text-blue-600 hover:text-blue-700 underline underline-offset-2`
+
+## 3. 布局与间距 (Layout & Spacing)
+
+- **基础单位:** `4px`。所有`margin`, `padding`应为`4px`的倍数 (对应Tailwind的间距单位)。
+- **容器 (Container):**
+  - 页面主体内容应包含在一个容器内，`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8`。
+- **圆角 (Border Radius):**
+  - **小:** `rounded-md` (6px) - 用于按钮、输入框。
+  - **中:** `rounded-lg` (8px) - 用于卡片。
+  - **大:** `rounded-xl` (12px) - 用于图片、模态框。
+- **阴影 (Box Shadow):**
+  - **常规:** `shadow-md`
+  - **悬浮/交互:** `shadow-lg`
+
+## 4. 组件规范 (Component Specs)
+
+- **按钮 (Button):**
+  - **主按钮:** `bg-blue-600 text-white hover:bg-blue-700`
+  - **次按钮:** `bg-white text-slate-700 border border-slate-300 hover:bg-slate-50`
+  - **通用样式:** `px-4 py-2 rounded-md font-semibold text-sm transition-colors`
+- **卡片 (Card):**
+  - **样式:** `bg-white dark:bg-slate-800 rounded-lg shadow-md p-6`
+- **表单输入框 (Input/Textarea):**
+  - **样式:** `block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm`
+
+## 5. 响应式断点
+
+遵循Tailwind CSS的默认断点：
+- **sm:** 640px
+- **md:** 768px
+- **lg:** 1024px
+- **xl:** 1280px
+- **2xl:** 1536px
+
+## 6. 图标系统
+
+- **图标库:** 使用 Heroicons 或 Lucide React
+- **尺寸规范:**
+  - 小图标: 16px (`w-4 h-4`)
+  - 常规图标: 20px (`w-5 h-5`)
+  - 大图标: 24px (`w-6 h-6`) 

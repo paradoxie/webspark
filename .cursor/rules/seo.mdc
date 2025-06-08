@@ -1,0 +1,59 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 任务：【前端】SEO、元数据与站点地图生成
+
+你好，Cursor。我们的网站功能已基本完成，现在需要进行至关重要的搜索引擎优化（SEO）和社交媒体优化（SMO）工作。这决定了我们的项目能否被世界发现。
+
+## 1. 目标与需求
+1.  **动态元数据:** 为所有关键页面（首页、详情页、标签页、用户主页）提供动态、精准的`<title>`和`<meta>`标签。
+2.  **站点地图 (Sitemap):** 自动生成一个符合规范的`sitemap.xml`文件，包含所有公开页面的URL。
+3.  **`robots.txt`:** 创建一个`robots.txt`文件，指导搜索引擎爬虫哪些页面可以爬取，哪些需要忽略。
+4.  **结构化数据 (JSON-LD):** 为作品详情页添加结构化数据，帮助搜索引擎更好地理解页面内容。
+5.  **Open Graph & Twitter Cards:** 确保所有页面在被分享到社交媒体时，能显示丰富的预览卡片。
+
+## 2. 技术实现细节 (Next.js App Router)
+
+- **动态元数据 (`generateMetadata`):**
+  - 我们已经为详情页做了基础实现。现在请确保以下页面也实现了`generateMetadata`函数：
+    - **`app/layout.tsx`:** 设置一个网站级的默认标题模板，如`title: { template: '%s | WebSpark.club', default: 'WebSpark.club - The Club for Web Creators' }`。
+    - **`app/tags/[slug]/page.tsx`:** 标题应为 `关于 [标签名] 的作品 - WebSpark.club`。
+    - **`app/users/[id]/page.tsx`:** 标题应为 `[用户名] 的作品集 - WebSpark.club`。
+  - **Open Graph & Twitter Cards:** 在`generateMetadata`的返回值中，全面地设置`openGraph`和`twitter`对象，包括`title`, `description`, `images`, `card`类型等。
+
+- **`sitemap.xml` 生成:**
+  - **文件路径:** `app/sitemap.ts` (Next.js 13+的约定)
+  - **逻辑:**
+    1.  导出一个`sitemap()`异步函数。
+    2.  函数内部，你需要并发地`fetch`多个数据源：
+        - `GET /api/websites?fields=slug,updatedAt` 获取所有已发布作品的URL和最后更新时间。
+        - `GET /api/tags?fields=slug` 获取所有标签页的URL。
+        - `GET /api/users?fields=id` 获取所有用户主页的URL。
+    3.  将这些URL整合成一个数组，每个对象包含`url`, `lastModified`, `changeFrequency`, `priority`。
+    4.  静态页面（如`/about`, `/submit`）也应手动添加到这个数组中。
+
+- **`robots.txt` 文件:**
+  - **文件路径:** `app/robots.ts`
+  - **逻辑:**
+    1.  导出一个`robots()`函数。
+    2.  返回一个对象，定义规则。例如：
+        - `User-agent: *`
+        - `Allow: /`
+        - `Disallow: /dashboard/` (禁止爬取用户个人中心等私有页面)
+        - 指向`sitemap.xml`的路径。
+
+- **结构化数据 (JSON-LD):**
+  - **实现位置:** 在作品详情页 `app/sites/[slug]/page.tsx` 中。
+  - **逻辑:**
+    1.  创建一个`getJsonLd(website)`函数，接收作品数据并返回一个符合`SoftwareApplication`或`CreativeWork` schema.org规范的JSON对象。
+    2.  在页面组件的JSX中，使用`<script type="application/ld+json">`标签，并将上述JSON对象通过`JSON.stringify()`序列化后注入。
+    3.  JSON-LD中应包含`name`, `author`, `description`, `image`, `url`, `aggregateRating`（如果有点赞可以映射）等字段。
+
+## 3. 注意事项
+- **规范性:** 生成的`sitemap.xml`和JSON-LD必须严格符合其官方规范，可以使用在线验证工具进行检查。
+- **自动化:** 所有这些都应该是自动生成的。当有新作品发布时，`sitemap.xml`在下一次构建时应自动包含它。
+- **性能:** 数据获取应尽可能高效，使用`fields`参数只请求必要的字段。
+
+请为我生成或修改上述所有相关文件 (`sitemap.ts`, `robots.ts`以及需要添加`generateMetadata`和JSON-LD的页面)的代码。
