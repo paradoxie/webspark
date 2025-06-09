@@ -1,0 +1,44 @@
+{
+  "kind": "collectionType",
+  "collectionName": "reports",
+  "info": {
+    "singularName": "report",
+    "pluralName": "reports",
+    "displayName": "Report",
+    "description": "User reports for inappropriate content"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "reason": {
+      "type": "enumeration",
+      "enum": ["SPAM", "INAPPROPRIATE_CONTENT", "COPYRIGHT_INFRINGEMENT", "BROKEN_LINK", "OTHER"],
+      "required": true
+    },
+    "details": {
+      "type": "text",
+      "required": false,
+      "maxLength": 500
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["OPEN", "CLOSED"],
+      "default": "OPEN",
+      "required": true
+    },
+    "website": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::website.website",
+      "required": true
+    },
+    "reporter": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "plugin::users-permissions.user",
+      "required": false
+    }
+  }
+} 

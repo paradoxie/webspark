@@ -1,0 +1,41 @@
+/**
+ * Custom routes for website API
+ */
+
+export default {
+  routes: [
+    // 点赞/取消点赞
+    {
+      method: 'PUT',
+      path: '/websites/:id/like',
+      handler: 'api::website.website.toggleLike',
+      config: {
+        policies: [],
+        middlewares: [],
+        auth: false, // 暂时关闭认证
+      },
+    },
+    // 收藏/取消收藏
+    {
+      method: 'PUT', 
+      path: '/websites/:id/bookmark',
+      handler: 'api::website.website.toggleBookmark',
+      config: {
+        policies: [],
+        middlewares: [],
+        auth: false, // 暂时关闭认证
+      },
+    },
+    // 混合排序列表
+    {
+      method: 'GET',
+      path: '/websites/sorted',
+      handler: 'api::website.website.findSorted',
+      config: {
+        policies: [],
+        middlewares: [],
+        auth: false, // 公开访问
+      },
+    },
+  ],
+}; 
