@@ -1,0 +1,37 @@
+User-agent: *
+Allow: /
+
+# 优先抓取重要页面
+Crawl-delay: 1
+
+# 禁止抓取管理页面、API和敏感路径
+Disallow: /api/
+Disallow: /admin/
+Disallow: /dashboard/auth/
+Disallow: /auth/error/
+Disallow: /test-auth/
+Disallow: /_next/
+Disallow: /_vercel/
+
+# 允许但降低优先级的页面
+Disallow: /dashboard/settings
+Disallow: /dashboard/profile
+
+# 重要页面明确允许
+Allow: /sites/
+Allow: /categories/
+Allow: /tags/
+Allow: /search
+Allow: /about
+Allow: /submit
+Allow: /dashboard$
+
+# 特殊搜索引擎配置
+User-agent: Baiduspider
+Crawl-delay: 2
+
+User-agent: Googlebot
+Crawl-delay: 1
+
+# 网站地图
+Sitemap: https://webspark.club/sitemap.xml

@@ -1,30 +1,33 @@
-import { StrapiResponse, StrapiError } from '@/types/api';
-import { Website, WebsiteFormData } from '@/types/website';
-import { Tag } from '@/types/tag';
-import { Report, ReportFormData } from '@/types/report';
-
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || 'http://localhost:1337/api';
-
-// API错误类
-export class ApiError extends Error {
-  status: number;
-  details?: any;
-
-  constructor(message: string, status: number, details?: any) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.details = details;
-  }
+// API 响应类型定义
+export interface ApiResponse<T> {
+  data: T;
+  meta?: {
+    pagination?: {
+      page: number;
+      pageSize: number;
+      pageCount: number;
+      total: number;
+    };
+  };
 }
 
-// API请求封装
+export interface ApiError {
+  error: {
+    status: number;
+    name: string;
+    message: string;
+    details?: any;
+  };
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+// 通用API请求函数
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
-): Promise<T> {
+): Promise<ApiResponse<T>> {
   const url = `${API_URL}${endpoint}`;
-  
   const config: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
@@ -38,161 +41,183 @@ async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
-      const error = data as StrapiError;
-      throw new ApiError(
-        error.error?.message || '请求失败',
-        response.status,
-        error.error?.details
-      );
+      throw new Error(data.message || `HTTP ${response.status}`);
     }
 
     return data;
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    throw new ApiError('网络请求失败', 0);
+    console.error('API request failed:', error);
+    throw error;
   }
-}
-
-// 带认证的API请求
-async function authenticatedRequest<T>(
-  endpoint: string,
-  token: string,
-  options: RequestInit = {}
-): Promise<T> {
-  return apiRequest<T>(endpoint, {
-    ...options,
-    headers: {
-      ...options.headers,
-      Authorization: `Bearer ${token}`,
-    },
-  });
 }
 
 // 网站相关API
 export const websiteApi = {
-  // 获取排序后的网站列表
-  async getSortedList(page = 1, pageSize = 12): Promise<StrapiResponse<Website[]>> {
-    return apiRequest(`/websites/sorted-list?page=${page}&pageSize=${pageSize}`);
+  async getSortedList(page = 1, pageSize = 12): Promise<ApiResponse<Website[]>> {
+    return apiRequest(`/api/websites/sorted?page=${page}&pageSize=${pageSize}`);
   },
 
-  // 获取单个网站
-  async getById(id: number): Promise<StrapiResponse<Website>> {
-    return apiRequest(`/websites/${id}?populate=*`);
+  async getById(id: number): Promise<ApiResponse<Website>> {
+    return apiRequest(`/api/websites/${id}`);
   },
 
-  // 根据slug获取网站
-  async getBySlug(slug: string): Promise<StrapiResponse<Website[]>> {
-    return apiRequest(`/websites?filters[slug][$eq]=${slug}&populate=*`);
+  async getBySlug(slug: string): Promise<ApiResponse<Website[]>> {
+    return apiRequest(`/api/websites?slug=${slug}`);
   },
 
-  // 创建网站
-  async create(data: WebsiteFormData, token: string): Promise<StrapiResponse<Website>> {
-    return authenticatedRequest('/websites', token, {
+  async create(data: WebsiteFormData, token: string): Promise<ApiResponse<Website>> {
+    return apiRequest('/api/websites', {
       method: 'POST',
-      body: JSON.stringify({ data }),
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
     });
   },
 
-  // 更新网站
-  async update(id: number, data: Partial<WebsiteFormData>, token: string): Promise<StrapiResponse<Website>> {
-    return authenticatedRequest(`/websites/${id}`, token, {
+  async update(id: number, data: Partial<WebsiteFormData>, token: string): Promise<ApiResponse<Website>> {
+    return apiRequest(`/api/websites/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ data }),
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
     });
   },
 
-  // 删除网站
-  async delete(id: number, token: string): Promise<StrapiResponse<Website>> {
-    return authenticatedRequest(`/websites/${id}`, token, {
+  async delete(id: number, token: string): Promise<ApiResponse<Website>> {
+    return apiRequest(`/api/websites/${id}`, {
       method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
 
-  // 点赞/取消点赞
-  async toggleLike(id: number, token: string): Promise<{ message: string; action: string; likeCount: number }> {
-    return authenticatedRequest(`/websites/${id}/toggle-like`, token, {
+  async toggleLike(id: number, token: string): Promise<ApiResponse<{ liked: boolean; likeCount: number }>> {
+    return apiRequest(`/api/websites/${id}/like`, {
       method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
 
-  // 收藏/取消收藏
-  async toggleBookmark(id: number, token: string): Promise<{ message: string; action: string }> {
-    return authenticatedRequest(`/websites/${id}/toggle-bookmark`, token, {
+  async toggleBookmark(id: number, token: string): Promise<ApiResponse<{ bookmarked: boolean }>> {
+    return apiRequest(`/api/websites/${id}/bookmark`, {
       method: 'PUT',
+      headers: { Authorization: `Bearer ${token}` },
     });
   },
 
-  // 搜索网站
-  async search(query: string, page = 1, pageSize = 12): Promise<StrapiResponse<Website[]>> {
-    const searchQuery = encodeURIComponent(query);
-    return apiRequest(`/websites?filters[$or][0][title][$containsi]=${searchQuery}&filters[$or][1][shortDescription][$containsi]=${searchQuery}&populate=*&pagination[page]=${page}&pagination[pageSize]=${pageSize}`);
+  async search(query: string, page = 1, pageSize = 12): Promise<ApiResponse<Website[]>> {
+    const params = new URLSearchParams({ q: query, page: page.toString(), pageSize: pageSize.toString() });
+    return apiRequest(`/api/websites/search?${params}`);
   },
 
-  // 按标签筛选
-  async getByTag(tagSlug: string, page = 1, pageSize = 12): Promise<StrapiResponse<Website[]>> {
-    return apiRequest(`/websites?filters[tags][slug][$eq]=${tagSlug}&populate=*&pagination[page]=${page}&pagination[pageSize]=${pageSize}`);
+  async getByTag(tagSlug: string, page = 1, pageSize = 12): Promise<ApiResponse<Website[]>> {
+    return apiRequest(`/api/websites?tag=${tagSlug}&page=${page}&pageSize=${pageSize}`);
   },
 };
 
 // 标签相关API
 export const tagApi = {
-  // 获取所有标签
-  async getAll(): Promise<StrapiResponse<Tag[]>> {
-    return apiRequest('/tags?sort=name:asc');
+  async getAll(): Promise<ApiResponse<Tag[]>> {
+    return apiRequest('/api/tags');
   },
 
-  // 获取热门标签
-  async getPopular(limit = 10): Promise<StrapiResponse<Tag[]>> {
-    return apiRequest(`/tags?populate=websites&pagination[pageSize]=${limit}&sort=websites:desc`);
+  async getPopular(limit = 10): Promise<ApiResponse<Tag[]>> {
+    return apiRequest(`/api/tags/popular?limit=${limit}`);
   },
 
-  // 根据slug获取标签
-  async getBySlug(slug: string): Promise<StrapiResponse<Tag[]>> {
-    return apiRequest(`/tags?filters[slug][$eq]=${slug}`);
+  async getBySlug(slug: string): Promise<ApiResponse<Tag[]>> {
+    return apiRequest(`/api/tags?slug=${slug}`);
   },
 };
 
 // 举报相关API
 export const reportApi = {
-  // 创建举报
-  async create(data: ReportFormData, token?: string): Promise<StrapiResponse<Report>> {
-    const options: RequestInit = {
-      method: 'POST',
-      body: JSON.stringify({ data }),
-    };
-
+  async create(data: ReportFormData, token?: string): Promise<ApiResponse<Report>> {
+    const headers: Record<string, string> = {};
     if (token) {
-      return authenticatedRequest('/reports', token, options);
-    } else {
-      return apiRequest('/reports', options);
+      headers.Authorization = `Bearer ${token}`;
     }
-  },
-};
-
-// 用户相关API
-export const userApi = {
-  // 获取当前用户信息
-  async getProfile(token: string): Promise<any> {
-    return authenticatedRequest('/users/me', token);
-  },
-
-  // 更新用户信息
-  async updateProfile(data: any, token: string): Promise<any> {
-    return authenticatedRequest('/users/me', token, {
-      method: 'PUT',
+    
+    return apiRequest('/api/reports', {
+      method: 'POST',
+      headers,
       body: JSON.stringify(data),
     });
   },
+};
 
-  // 获取用户的网站列表
-  async getUserWebsites(userId: number, token: string): Promise<StrapiResponse<Website[]>> {
-    return authenticatedRequest(`/websites?filters[author][id][$eq]=${userId}&populate=*`, token);
+// 类型定义
+export interface Website {
+  id: number;
+  title: string;
+  shortDescription: string;
+  description: string;
+  url: string;
+  sourceUrl?: string;
+  slug: string;
+  likeCount: number;
+  viewCount: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  author: User;
+  tags: Tag[];
+}
+
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+  displayName?: string;
+  avatar?: string;
+  bio?: string;
+  githubUrl?: string;
+  websiteUrl?: string;
+  twitterUrl?: string;
+}
+
+export interface Tag {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  color?: string;
+  websiteCount?: number;
+}
+
+export interface Report {
+  id: number;
+  reason: 'SPAM' | 'INAPPROPRIATE_CONTENT' | 'COPYRIGHT_INFRINGEMENT' | 'BROKEN_LINK' | 'OTHER';
+  details?: string;
+  status: 'OPEN' | 'CLOSED';
+  websiteId: number;
+  userId?: number;
+}
+
+export interface WebsiteFormData {
+  title: string;
+  shortDescription: string;
+  description: string;
+  url: string;
+  sourceUrl?: string;
+  tags: string[];
+}
+
+export interface ReportFormData {
+  websiteId: number;
+  reason: 'SPAM' | 'INAPPROPRIATE_CONTENT' | 'COPYRIGHT_INFRINGEMENT' | 'BROKEN_LINK' | 'OTHER';
+  details?: string;
+}
+
+// 用户相关API
+export const userApi = {
+  async getUserWebsites(userId: number, token: string): Promise<ApiResponse<Website[]>> {
+    return apiRequest(`/api/users/${userId}/websites`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   },
 
-  // 获取用户收藏的网站
-  async getUserBookmarks(token: string): Promise<StrapiResponse<Website[]>> {
-    return authenticatedRequest('/websites?filters[bookmarks][id][$eq]=$user&populate=*', token);
+  async getUserBookmarks(token: string): Promise<ApiResponse<Website[]>> {
+    return apiRequest('/api/user/bookmarks', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   },
 }; 

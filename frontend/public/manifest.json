@@ -1,0 +1,102 @@
+{
+  "name": "WebSpark.club - Web开发者作品展示平台",
+  "short_name": "WebSpark",
+  "description": "为Web开发者社群创建的作品展示、灵感碰撞和交流互动的俱乐部",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "social", "developer"],
+  "lang": "zh-CN",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/api/og/app?type=mobile",
+      "sizes": "390x844",
+      "type": "image/png",
+      "platform": "narrow",
+      "label": "移动端主页截图"
+    },
+    {
+      "src": "/api/og/app?type=desktop", 
+      "sizes": "1280x720",
+      "type": "image/png",
+      "platform": "wide",
+      "label": "桌面端主页截图"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "查看作品",
+      "short_name": "作品",
+      "description": "浏览最新的开发者作品",
+      "url": "/sites",
+      "icons": [
+        {
+          "src": "/apple-touch-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "提交作品",
+      "short_name": "提交",
+      "description": "分享你的开发者作品",
+      "url": "/submit",
+      "icons": [
+        {
+          "src": "/apple-touch-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "技术博客",
+      "short_name": "博客", 
+      "description": "阅读技术文章和教程",
+      "url": "/blog",
+      "icons": [
+        {
+          "src": "/apple-touch-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "handle_links": "preferred",
+  "capture_links": "new-client"
+}

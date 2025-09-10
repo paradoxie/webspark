@@ -1,6 +1,5 @@
-// API相关类型定义
-
-export interface StrapiResponse<T> {
+// API 响应类型定义
+export interface ApiResponse<T> {
   data: T;
   meta?: {
     pagination?: {
@@ -12,7 +11,7 @@ export interface StrapiResponse<T> {
   };
 }
 
-export interface StrapiError {
+export interface ApiError {
   error: {
     status: number;
     name: string;

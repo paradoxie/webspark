@@ -6,118 +6,91 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// 格式化日期
-export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(date);
-}
-
-// 格式化相对时间
-export function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
+// 格式化日期显示
+export function formatDate(date: string | Date): string {
+  const d = new Date(date);
   const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (diffInSeconds < 60) {
+  const diff = now.getTime() - d.getTime();
+  
+  // 计算时间差
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  
+  if (days > 7) {
+    return d.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } else if (days > 0) {
+    return `${days}天前`;
+  } else if (hours > 0) {
+    return `${hours}小时前`;
+  } else if (minutes > 0) {
+    return `${minutes}分钟前`;
+  } else {
     return '刚刚';
   }
-
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return `${diffInMinutes}分钟前`;
-  }
-
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return `${diffInHours}小时前`;
-  }
-
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) {
-    return `${diffInDays}天前`;
-  }
-
-  const diffInWeeks = Math.floor(diffInDays / 7);
-  if (diffInWeeks < 4) {
-    return `${diffInWeeks}周前`;
-  }
-
-  const diffInMonths = Math.floor(diffInDays / 30);
-  if (diffInMonths < 12) {
-    return `${diffInMonths}个月前`;
-  }
-
-  const diffInYears = Math.floor(diffInDays / 365);
-  return `${diffInYears}年前`;
 }
 
-// 截断文本
-export function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) {
-    return text;
+// 格式化数字显示（如点赞数、浏览数）
+export function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  } else if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
   }
-  return text.slice(0, maxLength) + '...';
+  return num.toString();
 }
 
-// 验证URL
-export function isValidUrl(urlString: string): boolean {
+// 生成随机颜色（用于标签等）
+export function generateRandomColor(): string {
+  const colors = [
+    'bg-blue-100 text-blue-800',
+    'bg-green-100 text-green-800',
+    'bg-yellow-100 text-yellow-800',
+    'bg-red-100 text-red-800',
+    'bg-purple-100 text-purple-800',
+    'bg-pink-100 text-pink-800',
+    'bg-indigo-100 text-indigo-800',
+    'bg-gray-100 text-gray-800',
+  ];
+  return colors[Math.floor(Math.random() * colors.length)];
+}
+
+// 生成slug（用于URL友好的字符串）
+export function generateSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, '') // 移除特殊字符
+    .replace(/[\s_-]+/g, '-') // 将空格和下划线替换为连字符
+    .replace(/^-+|-+$/g, ''); // 移除开头和结尾的连字符
+}
+
+// 验证URL格式
+export function isValidUrl(string: string): boolean {
   try {
-    new URL(urlString);
+    new URL(string);
     return true;
-  } catch {
+  } catch (_) {
     return false;
   }
 }
 
-// 生成slug
-export function generateSlug(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '') // 移除特殊字符
-    .replace(/[\s_-]+/g, '-') // 替换空格和下划线为连字符
-    .replace(/^-+|-+$/g, ''); // 移除开头和结尾的连字符
-}
-
-// 格式化数字（添加千分位分隔符）
-export function formatNumber(num: number): string {
-  return new Intl.NumberFormat('zh-CN').format(num);
-}
-
-// 获取图片URL（处理Strapi的相对路径）
-export function getImageUrl(url?: string): string {
-  if (!url) return '/placeholder-image.jpg';
-  if (url.startsWith('http')) return url;
-  return `${process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337'}${url}`;
-}
-
-// 提取域名
-export function extractDomain(url: string): string {
+// 获取域名（从URL中提取）
+export function getDomainFromUrl(url: string): string {
   try {
-    const urlObj = new URL(url);
-    return urlObj.hostname;
-  } catch {
-    return '';
+    const domain = new URL(url).hostname;
+    return domain.replace('www.', '');
+  } catch (_) {
+    return url;
   }
 }
 
-// 生成随机颜色（用于标签）
-export function generateRandomColor(): string {
-  const colors = [
-    '#ef4444', // red-500
-    '#f97316', // orange-500
-    '#eab308', // yellow-500
-    '#22c55e', // green-500
-    '#06b6d4', // cyan-500
-    '#3b82f6', // blue-500
-    '#8b5cf6', // violet-500
-    '#ec4899', // pink-500
-    '#84cc16', // lime-500
-    '#f59e0b', // amber-500
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
+// 截断文本并添加省略号
+export function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength).trim() + '...';
 } 

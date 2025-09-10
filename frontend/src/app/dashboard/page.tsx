@@ -4,6 +4,8 @@ import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 interface UserStats {
   totalWorks: number;
@@ -28,6 +30,7 @@ interface Website {
   tags: Array<{
     id: number;
     name: string;
+    slug: string;
     color?: string;
   }>;
 }
@@ -45,12 +48,22 @@ interface Achievement {
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('overview');
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [userWorks, setUserWorks] = useState<Website[]>([]);
   const [bookmarkedWorks, setBookmarkedWorks] = useState<Website[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [websites, setWebsites] = useState<Website[]>([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    approved: 0,
+    pending: 0,
+    rejected: 0,
+    totalLikes: 0,
+    totalViews: 0
+  });
 
   // 如果用户未登录，重定向到登录页面
   if (status === 'unauthenticated') {
@@ -66,135 +79,119 @@ export default function DashboardPage() {
   const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      // 模拟API调用加载用户数据
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 模拟用户统计数据
-      setUserStats({
-        totalWorks: 8,
-        totalLikes: 324,
-        totalViews: 12567,
-        totalBookmarks: 156,
-        monthlyViews: 2456,
-        weeklyLikes: 89
-      });
+      // 获取用户的作品
+      const worksResponse = await fetch('/api/user/websites');
+      if (worksResponse.ok) {
+        const worksData = await worksResponse.json();
+        setUserWorks(worksData.data);
+        
+        // 计算统计数据
+        const totalLikes = worksData.data.reduce((sum: number, work: Website) => sum + work.likeCount, 0);
+        const totalViews = worksData.data.reduce((sum: number, work: Website) => sum + work.viewCount, 0);
+        const approved = worksData.data.filter((work: Website) => work.status === 'APPROVED').length;
+        const pending = worksData.data.filter((work: Website) => work.status === 'PENDING').length;
+        const rejected = worksData.data.filter((work: Website) => work.status === 'REJECTED').length;
+        
+        setStats({
+          total: worksData.data.length,
+          approved,
+          pending,
+          rejected,
+          totalLikes,
+          totalViews
+        });
+        
+        const currentUserStats = {
+          totalWorks: worksData.data.length,
+          totalLikes,
+          totalViews,
+          totalBookmarks: 0, // TODO: 实现收藏功能后更新
+          monthlyViews: Math.floor(totalViews * 0.3), // 简单估算
+          weeklyLikes: Math.floor(totalLikes * 0.1) // 简单估算
+        };
+        
+        setUserStats(currentUserStats);
 
-      // 模拟用户作品数据
-      setUserWorks([
-        {
-          id: 1,
-          title: 'React 任务管理应用',
-          slug: 'react-task-manager',
-          shortDescription: '一个现代化的任务管理工具，支持拖拽、分类和团队协作',
-          url: 'https://react-tasks.demo.com',
-          screenshot: 'https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=400',
-          status: 'APPROVED',
-          likeCount: 89,
-          viewCount: 1234,
-          createdAt: '2024-01-15',
-          tags: [
-            { id: 1, name: 'React', color: 'blue' },
-            { id: 2, name: 'TypeScript', color: 'blue' },
-            { id: 3, name: 'Productivity', color: 'green' }
-          ]
-        },
-        {
-          id: 2,
-          title: 'Vue.js 电商平台',
-          slug: 'vue-ecommerce',
-          shortDescription: '功能完整的电商解决方案，包含购物车、支付和用户管理',
-          url: 'https://vue-shop.demo.com',
-          screenshot: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400',
-          status: 'PENDING',
-          likeCount: 156,
-          viewCount: 2341,
-          createdAt: '2024-01-10',
-          tags: [
-            { id: 4, name: 'Vue.js', color: 'green' },
-            { id: 5, name: 'E-commerce', color: 'purple' },
-            { id: 6, name: 'Nuxt.js', color: 'green' }
-          ]
-        },
-        {
-          id: 3,
-          title: 'Next.js 博客系统',
-          slug: 'nextjs-blog',
-          shortDescription: '基于Next.js和MDX的现代博客平台，支持深色模式',
-          url: 'https://nextjs-blog.demo.com',
-          status: 'REJECTED',
-          likeCount: 78,
-          viewCount: 987,
-          createdAt: '2024-01-05',
-          tags: [
-            { id: 7, name: 'Next.js', color: 'black' },
-            { id: 8, name: 'MDX', color: 'orange' },
-            { id: 9, name: 'Blog', color: 'gray' }
-          ]
-        }
-      ]);
+        // 生成成就数据（基于真实统计）
+        const newAchievements: Achievement[] = [
+          {
+            id: 'first_submission',
+            title: '初来乍到',
+            description: '提交你的第一个作品',
+            icon: '🚀',
+            unlocked: currentUserStats.totalWorks > 0,
+            unlockedAt: currentUserStats.totalWorks > 0 ? '2024-01-05' : undefined
+          },
+          {
+            id: 'popular_creator',
+            title: '人气创作者',
+            description: '获得100个点赞',
+            icon: '⭐',
+            unlocked: currentUserStats.totalLikes >= 100,
+            unlockedAt: currentUserStats.totalLikes >= 100 ? '2024-01-15' : undefined
+          },
+          {
+            id: 'prolific_creator',
+            title: '多产创作者',
+            description: '提交10个作品',
+            icon: '🏆',
+            unlocked: currentUserStats.totalWorks >= 10,
+            progress: currentUserStats.totalWorks,
+            target: 10
+          },
+          {
+            id: 'viral_hit',
+            title: '病毒式传播',
+            description: '单个作品获得1000个浏览',
+            icon: '🔥',
+            unlocked: worksData.data.some((work: Website) => work.viewCount >= 1000),
+            progress: Math.max(...worksData.data.map((work: Website) => work.viewCount), 0),
+            target: 1000
+          }
+        ];
+        setAchievements(newAchievements);
+      } else {
+        toast.error('Failed to load user works');
+      }
 
-      // 模拟收藏的作品
-      setBookmarkedWorks([
-        {
-          id: 101,
-          title: 'AI 聊天机器人',
-          slug: 'ai-chatbot',
-          shortDescription: '基于GPT的智能对话系统',
-          url: 'https://ai-chat.demo.com',
-          screenshot: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?w=400',
-          status: 'APPROVED',
-          likeCount: 456,
-          viewCount: 8901,
-          createdAt: '2024-01-12',
-          tags: [
-            { id: 10, name: 'AI', color: 'purple' },
-            { id: 11, name: 'ChatGPT', color: 'green' }
-          ]
-        }
-      ]);
-
-      // 模拟成就数据
-      setAchievements([
-        {
-          id: 'first_submission',
-          title: '初来乍到',
-          description: '提交你的第一个作品',
-          icon: '🚀',
-          unlocked: true,
-          unlockedAt: '2024-01-05'
-        },
-        {
-          id: 'popular_creator',
-          title: '人气创作者',
-          description: '获得100个点赞',
-          icon: '⭐',
-          unlocked: true,
-          unlockedAt: '2024-01-15'
-        },
-        {
-          id: 'prolific_creator',
-          title: '多产创作者',
-          description: '提交10个作品',
-          icon: '🏆',
-          unlocked: false,
-          progress: 8,
-          target: 10
-        },
-        {
-          id: 'viral_hit',
-          title: '病毒式传播',
-          description: '单个作品获得1000个浏览',
-          icon: '🔥',
-          unlocked: false,
-          progress: 1234,
-          target: 1000
-        }
-      ]);
+      // 获取收藏的作品
+      const bookmarksResponse = await fetch('/api/user/bookmarks');
+      if (bookmarksResponse.ok) {
+        const bookmarksData = await bookmarksResponse.json();
+        setBookmarkedWorks(bookmarksData.data);
+      } else {
+        console.log('Failed to load bookmarks (endpoint may not exist yet)');
+        setBookmarkedWorks([]);
+      }
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
+      toast.error('Failed to load dashboard data');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteWork = async (workId: number) => {
+    if (!confirm('确定要删除这个作品吗？')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/websites/${workId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('作品删除成功');
+        setUserWorks(prev => prev.filter(work => work.id !== workId));
+        // 重新计算统计数据
+        loadDashboardData();
+      } else {
+        toast.error('删除失败，请重试');
+      }
+    } catch (error) {
+      toast.error('网络错误，请重试');
     }
   };
 

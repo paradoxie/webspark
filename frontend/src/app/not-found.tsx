@@ -1,8 +1,67 @@
 import Link from 'next/link';
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: '页面未找到 - WebSpark.club',
+  description: '抱歉，您访问的页面不存在或已被移除。探索其他优秀的开发者作品和项目。',
+  robots: {
+    index: false,
+    follow: true,
+  },
+  openGraph: {
+    title: '页面未找到 - WebSpark.club',
+    description: '抱歉，您访问的页面不存在或已被移除。探索其他优秀的开发者作品和项目。',
+    type: 'website',
+  },
+}
 
 export default function NotFound() {
+  // 404页面结构化数据
+  const notFoundJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "页面未找到",
+    "description": "您访问的页面不存在或已被移除",
+    "url": "https://webspark.club/404",
+    "mainEntity": {
+      "@type": "Thing",
+      "name": "404错误",
+      "description": "页面未找到"
+    },
+    "breadcrumb": {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "item": {
+            "@type": "Thing",
+            "@id": "https://webspark.club/",
+            "name": "首页"
+          }
+        },
+        {
+          "@type": "ListItem", 
+          "position": 2,
+          "item": {
+            "@type": "Thing",
+            "@id": "https://webspark.club/404",
+            "name": "页面未找到"
+          }
+        }
+      ]
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+    <>
+      {/* 404页面结构化数据 */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(notFoundJsonLd) }}
+      />
+      
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
       <div className="max-w-2xl mx-auto text-center">
         {/* 404插图 */}
         <div className="relative mb-8 animate-fade-in-up">
@@ -122,6 +181,7 @@ export default function NotFound() {
           </p>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 } 

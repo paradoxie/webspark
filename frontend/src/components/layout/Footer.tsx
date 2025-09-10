@@ -28,27 +28,28 @@ export default function Footer() {
   const navigation = {
     product: [
       { name: '首页', href: '/' },
-      { name: '发现作品', href: '/sites' },
-      { name: '标签分类', href: '/tags' },
+      { name: '所有作品', href: '/sites' },
+      { name: '作品分类', href: '/categories' },
+      { name: '技术标签', href: '/tags' },
       { name: '提交作品', href: '/submit' },
     ],
+    browse: [
+      { name: '热门作品', href: '/sites?sort=popular' },
+      { name: '最新作品', href: '/sites?sort=latest' },
+      { name: '精选作品', href: '/sites?featured=true' },
+      { name: '随机发现', href: '/sites?random=true' },
+    ],
     community: [
-      { name: '开发者社区', href: '/community' },
-      { name: '设计师展示', href: '/designers' },
-      { name: '创意灵感', href: '/inspiration' },
-      { name: '技术博客', href: '/blog' },
-    ],
-    support: [
-      { name: '帮助中心', href: '/help' },
+      { name: '开发者', href: '/users' },
+      { name: '关于我们', href: '/about' },
       { name: '联系我们', href: '/contact' },
-      { name: '反馈建议', href: '/feedback' },
-      { name: '状态页面', href: '/status' },
+      { name: 'GitHub', href: 'https://github.com/webspark-club' },
     ],
-    legal: [
+    resources: [
+      { name: '帮助中心', href: '/help' },
       { name: '服务条款', href: '/terms' },
       { name: '隐私政策', href: '/privacy' },
-      { name: 'Cookie政策', href: '/cookies' },
-      { name: '版权声明', href: '/copyright' },
+      { name: 'API状态', href: '/api/status' },
     ],
   };
 
@@ -99,7 +100,7 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="relative bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white overflow-hidden">
+    <footer className="relative bg-gradient-to-br from-slate-900 via-purple-900 to-slate-800 text-white overflow-hidden">
       {/* 背景装饰 */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-gradient-to-br from-blue-500/20 to-purple-600/20 rounded-full blur-3xl"></div>
@@ -108,38 +109,68 @@ export default function Footer() {
       </div>
 
       {/* 网格背景 */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px]"></div>
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGRlZnM+CjxwYXR0ZXJuIGlkPSJwYXR0ZXJuIiB4PSIwIiB5PSIwIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPgo8Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwgMjU1LCAyNTUsIDAuMSkiLz4KPC9wYXR0ZXJuPgo8L2RlZnM+CjxyZWN0IHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgZmlsbD0idXJsKCNwYXR0ZXJuKSIvPgo8L3N2Zz4=')] opacity-20"></div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* 统计数据区域 */}
         <div className="pt-16 pb-12 border-b border-slate-800">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-4">
+            <h2 className="text-3xl font-bold text-white mb-4">
               一起构建开发者社区
             </h2>
             <p className="text-slate-300 text-lg max-w-2xl mx-auto">
-              汇聚全球开发者的创意与才华，共同打造最具活力的Web作品展示平台
+              打造航海圈友的Web作品展示平台
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div 
-                key={stat.name} 
-                className="text-center group animate-fade-in-up"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-300">
-                  {stat.icon}
-                </div>
-                <div className="text-3xl font-bold text-white mb-1 group-hover:text-blue-400 transition-colors duration-300">
-                  {stat.value}
-                </div>
-                <div className="text-slate-400 text-sm">
-                  {stat.name}
-                </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+            <div className="text-center">
+              <div className="text-4xl mb-2">👨‍💻</div>
+              <div className="text-3xl font-bold text-white mb-1">
+                4+
               </div>
-            ))}
+              <div className="text-purple-200">活跃开发者</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-4xl mb-2">🎨</div>
+              <div className="text-3xl font-bold text-white mb-1">
+                11+
+              </div>
+              <div className="text-purple-200">精彩作品</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-4xl mb-2">🧭</div>
+              <div className="text-3xl font-bold text-white mb-1">
+                26+
+              </div>
+              <div className="text-purple-200">分类</div>
+            </div>
+            
+            <div className="text-center">
+              <div className="text-4xl mb-2">🌍</div>
+              <div className="text-3xl font-bold text-white mb-1">
+                80+
+              </div>
+              <div className="text-purple-200">国家地区</div>
+            </div>
+          </div>
+
+          {/* CTA按钮 */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a
+              href="#featured"
+              className="inline-flex items-center px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors"
+            >
+              探索作品
+            </a>
+            <a
+              href="/submit"
+              className="inline-flex items-center px-6 py-3 rounded-lg border-2 border-white text-white hover:bg-white hover:text-slate-900 font-semibold transition-colors"
+            >
+              提交作品
+            </a>
           </div>
         </div>
 
@@ -241,9 +272,25 @@ export default function Footer() {
             <div className="lg:col-span-7">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-white">产品</h4>
+                  <h4 className="text-lg font-semibold text-white">产品导航</h4>
                   <ul className="space-y-3">
                     {navigation.product.map((item) => (
+                      <li key={item.name}>
+                        <Link
+                          href={item.href}
+                          className="text-slate-400 hover:text-white transition-colors duration-300 text-sm hover:translate-x-1 transform transition-transform duration-300 block"
+                        >
+                          {item.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-white">热门内容</h4>
+                  <ul className="space-y-3">
+                    {navigation.browse.map((item) => (
                       <li key={item.name}>
                         <Link
                           href={item.href}
@@ -261,37 +308,32 @@ export default function Footer() {
                   <ul className="space-y-3">
                     {navigation.community.map((item) => (
                       <li key={item.name}>
-                        <Link
-                          href={item.href}
-                          className="text-slate-400 hover:text-white transition-colors duration-300 text-sm hover:translate-x-1 transform transition-transform duration-300 block"
-                        >
-                          {item.name}
-                        </Link>
+                        {item.href.startsWith('http') ? (
+                          <a
+                            href={item.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-slate-400 hover:text-white transition-colors duration-300 text-sm hover:translate-x-1 transform transition-transform duration-300 block"
+                          >
+                            {item.name}
+                          </a>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            className="text-slate-400 hover:text-white transition-colors duration-300 text-sm hover:translate-x-1 transform transition-transform duration-300 block"
+                          >
+                            {item.name}
+                          </Link>
+                        )}
                       </li>
                     ))}
                   </ul>
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-white">支持</h4>
+                  <h4 className="text-lg font-semibold text-white">其他链接</h4>
                   <ul className="space-y-3">
-                    {navigation.support.map((item) => (
-                      <li key={item.name}>
-                        <Link
-                          href={item.href}
-                          className="text-slate-400 hover:text-white transition-colors duration-300 text-sm hover:translate-x-1 transform transition-transform duration-300 block"
-                        >
-                          {item.name}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-white">法律</h4>
-                  <ul className="space-y-3">
-                    {navigation.legal.map((item) => (
+                    {navigation.resources.map((item) => (
                       <li key={item.name}>
                         <Link
                           href={item.href}

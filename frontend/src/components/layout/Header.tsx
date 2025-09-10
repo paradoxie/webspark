@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import NotificationBell from '@/components/common/NotificationBell';
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -41,7 +42,9 @@ export default function Header() {
   const navigation = [
     { name: '首页', href: '/', icon: '🏠' },
     { name: '作品', href: '/sites', icon: '🎨' },
+    { name: '分类', href: '/categories', icon: '📂' },
     { name: '标签', href: '/tags', icon: '🏷️' },
+    { name: '博客', href: '/blog', icon: '📚' },
     { name: '关于', href: '/about', icon: 'ℹ️' },
   ];
 
@@ -133,6 +136,9 @@ export default function Header() {
                     </svg>
                     <span>提交作品</span>
                   </Link>
+
+                  {/* Notification Bell */}
+                  <NotificationBell />
 
                   {/* User Menu */}
                   <div className="relative user-menu-container">

@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  githubId  String   @unique
+  name      String?
+  avatar    String?
+  bio       String?  @db.Text
+  website   String?
+  location  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  websites      Website[]
+  comments      Comment[]
+  notifications Notification[]
+  reports       Report[]
+  likedSites    Website[] @relation("UserLikes")
+  bookmarks     Website[] @relation("UserBookmarks")
+
+  @@map("users")
+}
+
+model Website {
+  id               Int       @id @default(autoincrement())
+  title            String    @db.VarChar(50)
+  slug             String    @unique
+  url              String    @db.VarChar(500)
+  shortDescription String    @db.VarChar(160)
+  description      String    @db.Text
+  sourceUrl        String?   @db.VarChar(500)
+  status           Status    @default(PENDING)
+  featured         Boolean   @default(false)
+  likeCount        Int       @default(0)
+  viewCount        Int       @default(0)
+  isHiring         Boolean   @default(false)
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  authorId      Int
+  author        User           @relation(fields: [authorId], references: [id])
+  categoryId    Int?
+  category      Category?      @relation(fields: [categoryId], references: [id])
+  tags          Tag[]          @relation("WebsiteTags")
+  comments      Comment[]
+  notifications Notification[]
+  reports       Report[]
+  likedBy       User[]         @relation("UserLikes")
+  bookmarkedBy  User[]         @relation("UserBookmarks")
+
+  @@map("websites")
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique @db.VarChar(30)
+  slug        String    @unique
+  description String?   @db.VarChar(200)
+  icon        String?   @db.VarChar(50) // emoji or icon name
+  color       String?   @db.VarChar(7)
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  websites Website[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique @db.VarChar(30)
+  slug        String    @unique
+  description String?   @db.VarChar(200)
+  color       String?   @db.VarChar(7)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  websites Website[] @relation("WebsiteTags")
+
+  @@map("tags")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  websiteId     Int
+  website       Website        @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  authorId      Int
+  author        User           @relation(fields: [authorId], references: [id])
+  notifications Notification[]
+
+  // 回复关系（自关联）
+  parentId Int?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  type      NotificationType
+  title     String           @db.VarChar(100)
+  message   String           @db.VarChar(500)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  // Relations
+  userId    Int
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 关联的资源（可选）
+  websiteId Int?
+  website   Website? @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  commentId Int?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Report {
+  id        Int          @id @default(autoincrement())
+  reason    ReportReason
+  details   String?      @db.VarChar(500)
+  status    ReportStatus @default(OPEN)
+  createdAt DateTime     @default(now())
+
+  // Relations
+  websiteId  Int
+  website    Website @relation(fields: [websiteId], references: [id])
+  reporterId Int?
+  reporter   User?   @relation(fields: [reporterId], references: [id])
+
+  @@map("reports")
+}
+
+enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportReason {
+  SPAM
+  INAPPROPRIATE_CONTENT
+  COPYRIGHT_INFRINGEMENT
+  BROKEN_LINK
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  CLOSED
+}
+
+enum NotificationType {
+  WEBSITE_APPROVED
+  WEBSITE_REJECTED
+  WEBSITE_LIKED
+  WEBSITE_COMMENTED
+  COMMENT_REPLIED
+  SYSTEM
+} 

@@ -96,11 +96,11 @@ export default function AboutPage() {
                 <div className="font-semibold text-slate-800 dark:text-white">Tailwind</div>
                 <div className="text-sm text-slate-600 dark:text-slate-300">样式框架</div>
               </div>
-              <div className="text-center">
-                <div className="text-3xl mb-2">🗄️</div>
-                <div className="font-semibold text-slate-800 dark:text-white">Strapi</div>
-                <div className="text-sm text-slate-600 dark:text-slate-300">后端CMS</div>
-              </div>
+                              <div className="text-center">
+                  <div className="text-3xl mb-2">🗄️</div>
+                  <div className="font-semibold text-slate-800 dark:text-white">Node.js + Express</div>
+                  <div className="text-sm text-slate-600 dark:text-slate-300">后端API服务</div>
+                </div>
             </div>
           </div>
 
