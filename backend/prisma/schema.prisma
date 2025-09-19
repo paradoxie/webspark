@@ -14,10 +14,13 @@ model User {
   githubId  String   @unique
   name      String?
   avatar    String?
-  bio       String?  @db.Text
-  website   String?
-  location  String?
-  isActive  Boolean  @default(true)
+  bio                String?  @db.Text
+  website            String?
+  github             String?  // GitHub用户名
+  location           String?
+  emailNotifications Boolean  @default(true)
+  isActive           Boolean  @default(true)
+  role               UserRole @default(USER)  // 用户角色
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -28,6 +31,15 @@ model User {
   reports       Report[]
   likedSites    Website[] @relation("UserLikes")
   bookmarks     Website[] @relation("UserBookmarks")
+  likedComments Comment[] @relation("CommentLikes")
+
+  // 关注关系 - 多对多自关联
+  following     User[] @relation("UserFollows")
+  followers     User[] @relation("UserFollows")
+
+  // 保存的搜索
+  savedSearches SavedSearch[]
+  searchHistory SearchHistory[]
 
   @@map("users")
 }
@@ -40,6 +52,7 @@ model Website {
   shortDescription String    @db.VarChar(160)
   description      String    @db.Text
   sourceUrl        String?   @db.VarChar(500)
+  screenshots      Json?     // 存储截图URL数组
   status           Status    @default(PENDING)
   featured         Boolean   @default(false)
   likeCount        Int       @default(0)
@@ -100,6 +113,7 @@ model Tag {
 model Comment {
   id        Int      @id @default(autoincrement())
   content   String   @db.Text
+  likeCount Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -109,6 +123,7 @@ model Comment {
   authorId      Int
   author        User           @relation(fields: [authorId], references: [id])
   notifications Notification[]
+  likedBy       User[]         @relation("CommentLikes")
 
   // 回复关系（自关联）
   parentId Int?
@@ -155,6 +170,44 @@ model Report {
   @@map("reports")
 }
 
+model SavedSearch {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100) // 用户自定义的搜索名称
+  query     String   @db.VarChar(500) // 搜索查询字符串
+  filters   Json?    // 保存的筛选条件 (category, tags, etc.)
+  isActive  Boolean  @default(true)   // 是否激活
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("saved_searches")
+}
+
+model SearchHistory {
+  id        Int      @id @default(autoincrement())
+  query     String   @db.VarChar(500) // 搜索查询字符串
+  filters   Json?    // 搜索时的筛选条件
+  results   Int      @default(0)      // 搜索结果数量
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("search_history")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  MODERATOR
+}
+
 enum Status {
   PENDING
   APPROVED
@@ -180,5 +233,7 @@ enum NotificationType {
   WEBSITE_LIKED
   WEBSITE_COMMENTED
   COMMENT_REPLIED
+  COMMENT_LIKED
+  USER_FOLLOWED
   SYSTEM
 } 

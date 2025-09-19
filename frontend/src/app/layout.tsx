@@ -2,6 +2,7 @@ import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import AuthProvider from '@/components/providers/AuthProvider'
+import { ThemeProvider } from '@/contexts/ThemeContext'
 import WebVitals, { PerformanceHints } from '@/components/common/WebVitals'
 import MobileOptimization from '@/components/common/MobileOptimization'
 import PWAManager, { MobilePerformanceMonitor } from '@/components/common/PWAManager'
@@ -18,7 +19,7 @@ export default function RootLayout({
         <meta name="description" content="为Web开发者社群创建的作品展示、灵感碰撞和交流互动的俱乐部" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover" />
         <meta name="theme-color" content="#3b82f6" />
-        <meta name="color-scheme" content="light" />
+        <meta name="color-scheme" content="light dark" />
         
         {/* 语言和地区标签 */}
         <meta httpEquiv="Content-Language" content="zh-CN" />
@@ -34,6 +35,47 @@ export default function RootLayout({
         <meta name="baidu-site-verification" content="" /> {/* 待填入实际验证码 */}
         <meta name="sogou_site_verification" content="" /> {/* 待填入实际验证码 */}
         <meta name="shenma-site-verification" content="" /> {/* 待填入实际验证码 */}
+        
+        {/* 主题切换脚本 - 防止闪烁 */}
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            (function() {
+              const storageKey = 'webspark-theme';
+              
+              function getTheme() {
+                try {
+                  const stored = localStorage.getItem(storageKey);
+                  if (stored) return stored;
+                } catch (e) {}
+                return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+              }
+              
+              function applyTheme(theme) {
+                const root = document.documentElement;
+                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                const resolvedTheme = theme === 'system' ? systemTheme : theme;
+                
+                root.classList.remove('light', 'dark');
+                root.classList.add(resolvedTheme);
+                
+                const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+                if (metaThemeColor) {
+                  metaThemeColor.setAttribute('content', resolvedTheme === 'dark' ? '#0f172a' : '#3b82f6');
+                }
+              }
+              
+              const theme = getTheme();
+              applyTheme(theme);
+              
+              window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+                const currentTheme = localStorage.getItem(storageKey) || 'system';
+                if (currentTheme === 'system') {
+                  applyTheme('system');
+                }
+              });
+            })();
+          `
+        }} />
         
         {/* 关键CSS内联 - 首屏样式 */}
         <style dangerouslySetInnerHTML={{
@@ -118,20 +160,22 @@ export default function RootLayout({
           href="https://webspark.club/blog/rss.xml"
         />
       </head>
-      <body className="min-h-screen bg-slate-50 antialiased">
-        <MobileOptimization>
-          <AuthProvider>
-            <Header />
-            <main className="relative">
-              {children}
-            </main>
-            <Footer />
-            <WebVitals />
-            <PerformanceHints />
-            <PWAManager />
-            <MobilePerformanceMonitor />
-          </AuthProvider>
-        </MobileOptimization>
+      <body className="min-h-screen bg-slate-50 dark:bg-slate-900 antialiased">
+        <ThemeProvider>
+          <MobileOptimization>
+            <AuthProvider>
+              <Header />
+              <main className="relative">
+                {children}
+              </main>
+              <Footer />
+              <WebVitals />
+              <PerformanceHints />
+              <PWAManager />
+              <MobilePerformanceMonitor />
+            </AuthProvider>
+          </MobileOptimization>
+        </ThemeProvider>
       </body>
     </html>
   );

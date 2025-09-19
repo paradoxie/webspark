@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
+    CUSTOM_KEY: process.env.CUSTOM_KEY || 'default-value',
     API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
   },
   // SEO和性能优化配置
@@ -61,8 +61,6 @@ const nextConfig = {
     formats: ['image/webp', 'image/avif'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    // 图片质量优化
-    quality: 80,
     // 图片加载优化
     loader: 'default',
     // 最小缓存时间（秒）
@@ -155,26 +153,7 @@ const nextConfig = {
           },
         ],
       },
-      // 图片资源缓存优化
-      {
-        source: '/(.*\\.(jpg|jpeg|png|gif|webp|avif|ico|svg)$)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
-      // 字体资源缓存优化
-      {
-        source: '/(.*\\.(woff|woff2|eot|ttf|otf)$)',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
-          },
-        ],
-      },
+      // 删除有问题的图片和字体资源缓存配置
     ]
   },
 }

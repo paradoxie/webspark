@@ -48,17 +48,38 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       // 初始登录
       if (account && user) {
+        // 创建用户信息对象
+        const userInfo = {
+          sub: user.id || token.sub,
+          email: user.email,
+          name: user.name,
+          login: account.provider === 'github' ? (user as any).login : user.name?.toLowerCase().replace(/\s+/g, ''),
+          provider: account.provider
+        };
+
+        // 生成base64编码的token，与后端期望的格式一致
+        const encodedToken = Buffer.from(JSON.stringify(userInfo)).toString('base64');
+
         return {
           ...token,
-          accessToken: account.access_token,
-          // 对于GitHub登录，我们将GitHub用户名存储在token中
-          login: account.provider === 'github' ? (user as any).login : user.name?.toLowerCase().replace(/\s+/g, ''),
+          accessToken: encodedToken,
+          login: userInfo.login,
+          userInfo
         };
       }
-      
+
       // 确保token中始终有accessToken
-      if (!token.accessToken) {
-        token.accessToken = token.sub; // 使用用户ID作为访问令牌
+      if (!token.accessToken && token.sub) {
+        // 获取用户角色信息
+        const userInfo = {
+          sub: token.sub,
+          email: token.email,
+          name: token.name,
+          login: token.login || token.name?.toLowerCase().replace(/\s+/g, ''),
+          role: 'USER' // 默认角色，实际角色由后端验证
+        };
+        token.accessToken = Buffer.from(JSON.stringify(userInfo)).toString('base64');
+        token.userInfo = userInfo;
       }
 
       return token;
@@ -72,6 +93,7 @@ export const authOptions: NextAuthOptions = {
           ...session.user,
           id: token.sub,
           login: token.login || token.name?.toLowerCase().replace(/\s+/g, ''),
+          role: (token.userInfo as any)?.role || 'USER', // 从token中获取角色信息
         }
       };
     },

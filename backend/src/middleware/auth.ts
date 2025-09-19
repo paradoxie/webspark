@@ -10,6 +10,7 @@ export interface AuthenticatedRequest extends Request {
     username: string;
     name?: string | null;
     avatar?: string | null;
+    role?: string;
   };
 }
 
@@ -55,6 +56,7 @@ export const authenticate = async (
           name: true,
           avatar: true,
           isActive: true,
+          role: true,
         },
       });
 
@@ -68,6 +70,7 @@ export const authenticate = async (
             githubId: 'test_admin',
             name: 'Administrator',
             isActive: true,
+            role: 'ADMIN',
           },
           select: {
             id: true,
@@ -76,6 +79,7 @@ export const authenticate = async (
             name: true,
             avatar: true,
             isActive: true,
+            role: true,
           },
         });
       }
@@ -108,6 +112,7 @@ export const authenticate = async (
             name: true,
             avatar: true,
             isActive: true,
+            role: true,
           },
         });
 
@@ -121,6 +126,7 @@ export const authenticate = async (
               githubId: 'test_admin',
               name: payload.name,
               isActive: true,
+              role: 'ADMIN',
             },
             select: {
               id: true,
@@ -129,6 +135,7 @@ export const authenticate = async (
               name: true,
               avatar: true,
               isActive: true,
+              role: true,
             },
           });
         }
@@ -162,7 +169,8 @@ export const authenticate = async (
           username: true,
           name: true,
           avatar: true,
-          isActive: true
+          isActive: true,
+          role: true,
         }
       });
 
@@ -185,10 +193,10 @@ export const authenticate = async (
 
     // 查找用户 - 尝试多种方式
     let user = null;
-    
+
     // 方式1: 通过 githubId 查找
     user = await prisma.user.findFirst({
-      where: { 
+      where: {
         OR: [
           { githubId: userId },
           { id: parseInt(userId) || 0 },
@@ -201,7 +209,8 @@ export const authenticate = async (
         username: true,
         name: true,
         avatar: true,
-        isActive: true
+        isActive: true,
+        role: true,
       }
     });
 
@@ -223,7 +232,8 @@ export const authenticate = async (
           username: true,
           name: true,
           avatar: true,
-          isActive: true
+          isActive: true,
+          role: true,
         }
       });
     }
@@ -288,6 +298,7 @@ export const optionalAuth = async (
             name: true,
             avatar: true,
             isActive: true,
+            role: true,
           },
         });
 
@@ -314,7 +325,8 @@ export const optionalAuth = async (
           username: true,
           name: true,
           avatar: true,
-          isActive: true
+          isActive: true,
+          role: true,
         }
       });
 
@@ -331,7 +343,7 @@ export const optionalAuth = async (
     }
 
     const user = await prisma.user.findFirst({
-      where: { 
+      where: {
         OR: [
           { githubId: userId },
           { id: parseInt(userId) || 0 },
@@ -344,7 +356,8 @@ export const optionalAuth = async (
         username: true,
         name: true,
         avatar: true,
-        isActive: true
+        isActive: true,
+        role: true,
       }
     });
 
@@ -356,4 +369,50 @@ export const optionalAuth = async (
   }
 
   next();
+};
+
+// 管理员权限验证中间件
+export const requireAdmin = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      });
+    }
+
+    // 查询用户角色
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { role: true, isActive: true }
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(403).json({
+        error: 'Account not found or deactivated',
+        code: 'ACCOUNT_INVALID'
+      });
+    }
+
+    if (user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
+      return res.status(403).json({
+        error: 'Administrator privileges required',
+        code: 'INSUFFICIENT_PRIVILEGES'
+      });
+    }
+
+    // 将角色信息添加到请求对象中
+    req.user.role = user.role;
+    next();
+  } catch (error) {
+    console.error('Admin authorization error:', error);
+    return res.status(500).json({
+      error: 'Authorization check failed',
+      code: 'AUTH_CHECK_ERROR'
+    });
+  }
 }; 

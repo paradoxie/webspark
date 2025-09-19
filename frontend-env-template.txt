@@ -1,0 +1,58 @@
+# WebSpark.club 前端环境变量配置
+# 复制此文件内容到您的前端部署平台(Vercel/Cloudflare Pages)环境变量设置中
+
+# NextAuth.js 配置
+NEXTAUTH_URL=https://your-domain.com
+NEXTAUTH_SECRET=your-super-secret-nextauth-key-32-chars-min
+
+# GitHub OAuth 配置
+GITHUB_CLIENT_ID=your-github-oauth-client-id
+GITHUB_CLIENT_SECRET=your-github-oauth-client-secret
+
+# API 配置
+NEXT_PUBLIC_API_URL=https://api.your-domain.com
+
+# 可选配置
+CUSTOM_KEY=webspark-production
+
+# ===========================================
+# 配置说明：
+# ===========================================
+
+# NEXTAUTH_URL: 前端应用的完整URL
+# - 生产环境: https://your-domain.com
+# - 测试环境: https://your-app-name.vercel.app
+
+# NEXTAUTH_SECRET: NextAuth.js的加密密钥
+# - 至少32个字符的随机字符串
+# - 可以使用: openssl rand -base64 32
+
+# GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET:
+# - 在GitHub Settings > Developer settings > OAuth Apps创建
+# - 授权回调URL: https://your-domain.com/api/auth/callback/github
+
+# NEXT_PUBLIC_API_URL: 后端API的完整URL
+# - 必须以https://开头
+# - 与后端部署的域名保持一致
+
+# ===========================================
+# 部署平台特定说明：
+# ===========================================
+
+# Vercel部署：
+# 1. 登录Vercel控制台
+# 2. 选择项目 > Settings > Environment Variables
+# 3. 添加上述所有变量
+# 4. 重新部署应用
+
+# Cloudflare Pages部署：
+# 1. 登录Cloudflare控制台  
+# 2. 选择项目 > Settings > Environment variables
+# 3. 添加上述所有变量
+# 4. 重新部署应用
+
+# Netlify部署：
+# 1. 登录Netlify控制台
+# 2. 选择项目 > Site settings > Environment variables
+# 3. 添加上述所有变量
+# 4. 重新部署应用

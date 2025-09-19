@@ -32,7 +32,9 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
               status: 'APPROVED',
               deletedAt: null
             }
-          }
+          },
+          followers: true,
+          following: true
         }
       }
     }
@@ -358,7 +360,9 @@ router.get('/:username', asyncHandler(async (req: Request, res: Response) => {
               status: 'APPROVED',
               deletedAt: null
             }
-          }
+          },
+          followers: true,
+          following: true
         }
       }
     }
@@ -514,6 +518,376 @@ router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
   res.json({
     data: updatedUser,
     message: '个人信息更新成功'
+  });
+}));
+
+// 关注用户
+router.post('/:userId/follow', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { userId } = req.params;
+  const followerId = req.user!.id;
+  const targetUserId = parseInt(userId);
+
+  if (followerId === targetUserId) {
+    return res.status(400).json({
+      error: '不能关注自己',
+      code: 'CANNOT_FOLLOW_SELF'
+    });
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetUserId }
+  });
+
+  if (!targetUser) {
+    return res.status(404).json({
+      error: '用户不存在',
+      code: 'USER_NOT_FOUND'
+    });
+  }
+
+  const existingFollow = await prisma.user.findFirst({
+    where: {
+      id: followerId,
+      following: {
+        some: { id: targetUserId }
+      }
+    }
+  });
+
+  if (existingFollow) {
+    return res.status(400).json({
+      error: '已经关注该用户',
+      code: 'ALREADY_FOLLOWING'
+    });
+  }
+
+  // 创建关注关系
+  await prisma.user.update({
+    where: { id: followerId },
+    data: {
+      following: {
+        connect: { id: targetUserId }
+      }
+    }
+  });
+
+  // 创建通知
+  await prisma.notification.create({
+    data: {
+      type: 'USER_FOLLOWED',
+      title: '新的关注者',
+      message: `${req.user!.username} 开始关注你了`,
+      userId: targetUserId
+    }
+  });
+
+  res.json({
+    data: { success: true },
+    message: '关注成功'
+  });
+}));
+
+// 取消关注用户
+router.delete('/:userId/follow', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { userId } = req.params;
+  const followerId = req.user!.id;
+  const targetUserId = parseInt(userId);
+
+  if (followerId === targetUserId) {
+    return res.status(400).json({
+      error: '不能取消关注自己',
+      code: 'CANNOT_UNFOLLOW_SELF'
+    });
+  }
+
+  const existingFollow = await prisma.user.findFirst({
+    where: {
+      id: followerId,
+      following: {
+        some: { id: targetUserId }
+      }
+    }
+  });
+
+  if (!existingFollow) {
+    return res.status(400).json({
+      error: '还未关注该用户',
+      code: 'NOT_FOLLOWING'
+    });
+  }
+
+  // 删除关注关系
+  await prisma.user.update({
+    where: { id: followerId },
+    data: {
+      following: {
+        disconnect: { id: targetUserId }
+      }
+    }
+  });
+
+  res.json({
+    data: { success: true },
+    message: '取消关注成功'
+  });
+}));
+
+// 获取用户关注列表
+router.get('/:userId/following', asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 50);
+  const skip = (page - 1) * pageSize;
+
+  const user = await prisma.user.findUnique({
+    where: { id: parseInt(userId) },
+    include: {
+      following: {
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          avatar: true,
+          bio: true,
+          _count: {
+            select: {
+              websites: {
+                where: {
+                  status: 'APPROVED',
+                  deletedAt: null
+                }
+              },
+              followers: true
+            }
+          }
+        },
+        skip,
+        take: pageSize,
+        orderBy: {
+          username: 'asc'
+        }
+      },
+      _count: {
+        select: {
+          following: true
+        }
+      }
+    }
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      error: '用户不存在',
+      code: 'USER_NOT_FOUND'
+    });
+  }
+
+  res.json({
+    data: {
+      following: user.following,
+      meta: {
+        pagination: {
+          page,
+          pageSize,
+          pageCount: Math.ceil(user._count.following / pageSize),
+          total: user._count.following
+        }
+      }
+    }
+  });
+}));
+
+// 获取用户粉丝列表
+router.get('/:userId/followers', asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 50);
+  const skip = (page - 1) * pageSize;
+
+  const user = await prisma.user.findUnique({
+    where: { id: parseInt(userId) },
+    include: {
+      followers: {
+        select: {
+          id: true,
+          username: true,
+          name: true,
+          avatar: true,
+          bio: true,
+          _count: {
+            select: {
+              websites: {
+                where: {
+                  status: 'APPROVED',
+                  deletedAt: null
+                }
+              },
+              followers: true
+            }
+          }
+        },
+        skip,
+        take: pageSize,
+        orderBy: {
+          username: 'asc'
+        }
+      },
+      _count: {
+        select: {
+          followers: true
+        }
+      }
+    }
+  });
+
+  if (!user) {
+    return res.status(404).json({
+      error: '用户不存在',
+      code: 'USER_NOT_FOUND'
+    });
+  }
+
+  res.json({
+    data: {
+      followers: user.followers,
+      meta: {
+        pagination: {
+          page,
+          pageSize,
+          pageCount: Math.ceil(user._count.followers / pageSize),
+          total: user._count.followers
+        }
+      }
+    }
+  });
+}));
+
+// 检查关注状态
+router.get('/:userId/follow-status', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { userId } = req.params;
+  const currentUserId = req.user!.id;
+  const targetUserId = parseInt(userId);
+
+  if (currentUserId === targetUserId) {
+    return res.json({
+      data: {
+        isFollowing: false,
+        isSelf: true
+      }
+    });
+  }
+
+  const followRelation = await prisma.user.findFirst({
+    where: {
+      id: currentUserId,
+      following: {
+        some: { id: targetUserId }
+      }
+    }
+  });
+
+  res.json({
+    data: {
+      isFollowing: !!followRelation,
+      isSelf: false
+    }
+  });
+}));
+
+// 获取关注用户的最新作品动态
+router.get('/me/following-feed', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.id;
+  const page = parseInt(req.query.page as string) || 1;
+  const pageSize = Math.min(parseInt(req.query.pageSize as string) || 10, 50);
+  const skip = (page - 1) * pageSize;
+
+  const [websites, total] = await Promise.all([
+    prisma.website.findMany({
+      where: {
+        status: 'APPROVED',
+        deletedAt: null,
+        author: {
+          followers: {
+            some: { id: userId }
+          }
+        }
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            avatar: true
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            icon: true,
+            color: true
+          }
+        },
+        tags: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            color: true
+          }
+        },
+        likedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        bookmarkedBy: {
+          where: { id: userId },
+          select: { id: true }
+        },
+        _count: {
+          select: {
+            comments: true,
+            likedBy: true
+          }
+        }
+      },
+      skip,
+      take: pageSize,
+      orderBy: {
+        createdAt: 'desc'
+      }
+    }),
+    prisma.website.count({
+      where: {
+        status: 'APPROVED',
+        deletedAt: null,
+        author: {
+          followers: {
+            some: { id: userId }
+          }
+        }
+      }
+    })
+  ]);
+
+  const websitesWithUserData = websites.map((website: any) => ({
+    ...website,
+    isLiked: website.likedBy && website.likedBy.length > 0,
+    isBookmarked: website.bookmarkedBy && website.bookmarkedBy.length > 0
+  }));
+
+  res.json({
+    data: websitesWithUserData,
+    meta: {
+      pagination: {
+        page,
+        pageSize,
+        pageCount: Math.ceil(total / pageSize),
+        total
+      }
+    }
   });
 }));
 

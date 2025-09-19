@@ -2,9 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useSession } from 'next-auth/react';
-import toast from 'react-hot-toast';
+import SectionHeader from '@/components/common/SectionHeader';
+import WebsiteGrid from '@/components/common/WebsiteGrid';
+import LoadingGrid from '@/components/common/LoadingGrid';
+import EmptyState from '@/components/common/EmptyState';
+import Button from '@/components/ui/Button';
+import { useWebsiteActions } from '@/hooks/useWebsiteActions';
 
 interface Website {
   id: number;
@@ -47,6 +51,8 @@ export default function WebsiteList() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const { handleLike, handleBookmark } = useWebsiteActions({ websites, setWebsites });
 
   useEffect(() => {
     fetchWebsites(1, true);

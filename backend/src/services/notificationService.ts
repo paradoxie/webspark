@@ -1,11 +1,13 @@
 import { prisma } from '../lib/prisma';
+import { emailService } from './emailService';
 
-export type NotificationType = 
-  | 'WEBSITE_APPROVED' 
-  | 'WEBSITE_REJECTED' 
-  | 'WEBSITE_LIKED' 
-  | 'WEBSITE_COMMENTED' 
-  | 'COMMENT_REPLIED' 
+export type NotificationType =
+  | 'WEBSITE_APPROVED'
+  | 'WEBSITE_REJECTED'
+  | 'WEBSITE_LIKED'
+  | 'WEBSITE_COMMENTED'
+  | 'COMMENT_REPLIED'
+  | 'COMMENT_LIKED'
   | 'SYSTEM';
 
 interface CreateNotificationParams {
@@ -63,42 +65,88 @@ export class NotificationService {
 
   // 网站审核通过通知
   static async notifyWebsiteApproved(websiteId: number, userId: number) {
-    const website = await prisma.website.findUnique({
-      where: { id: websiteId },
-      select: { title: true }
-    });
+    const [website, user] = await Promise.all([
+      prisma.website.findUnique({
+        where: { id: websiteId },
+        select: { title: true, slug: true }
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, username: true, email: true, emailNotifications: true }
+      })
+    ]);
 
-    if (!website) return;
+    if (!website || !user) return;
 
-    return this.createNotification({
+    // 创建站内通知
+    const notification = await this.createNotification({
       userId,
       type: 'WEBSITE_APPROVED',
       title: '作品审核通过',
       message: `你的作品《${website.title}》已通过审核并发布`,
       websiteId
     });
+
+    // 发送邮件通知（如果用户开启了邮件通知）
+    if (user.emailNotifications !== false) {
+      try {
+        await emailService.sendWebsiteApprovedNotification(
+          user.email,
+          user.name || user.username,
+          website.title,
+          website.slug
+        );
+      } catch (error) {
+        console.error('Failed to send email notification:', error);
+      }
+    }
+
+    return notification;
   }
 
   // 网站审核拒绝通知
   static async notifyWebsiteRejected(websiteId: number, userId: number, reason?: string) {
-    const website = await prisma.website.findUnique({
-      where: { id: websiteId },
-      select: { title: true }
-    });
+    const [website, user] = await Promise.all([
+      prisma.website.findUnique({
+        where: { id: websiteId },
+        select: { title: true }
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, username: true, email: true, emailNotifications: true }
+      })
+    ]);
 
-    if (!website) return;
+    if (!website || !user) return;
 
     const message = reason 
       ? `你的作品《${website.title}》未通过审核：${reason}`
       : `你的作品《${website.title}》未通过审核`;
 
-    return this.createNotification({
+    // 创建站内通知
+    const notification = await this.createNotification({
       userId,
       type: 'WEBSITE_REJECTED',
       title: '作品审核未通过',
       message,
       websiteId
     });
+
+    // 发送邮件通知（如果用户开启了邮件通知）
+    if (user.emailNotifications !== false) {
+      try {
+        await emailService.sendWebsiteRejectedNotification(
+          user.email,
+          user.name || user.username,
+          website.title,
+          reason
+        );
+      } catch (error) {
+        console.error('Failed to send email notification:', error);
+      }
+    }
+
+    return notification;
   }
 
   // 网站被点赞通知
@@ -201,5 +249,60 @@ export class NotificationService {
     );
 
     return notifications;
+  }
+
+  // 评论点赞通知
+  static async notifyCommentLiked(commentId: number, likerName: string) {
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+            emailNotifications: true
+          }
+        },
+        website: {
+          select: {
+            id: true,
+            title: true,
+            slug: true
+          }
+        }
+      }
+    });
+
+    if (!comment) return;
+
+    const user = comment.author;
+
+    // 创建站内通知
+    await this.createNotification({
+      userId: user.id,
+      type: 'COMMENT_LIKED',
+      title: '评论被点赞',
+      message: `${likerName} 点赞了你在《${comment.website.title}》下的评论`,
+      websiteId: comment.website.id,
+      commentId
+    });
+
+    // 发送邮件通知（如果用户开启了邮件通知）
+    if (user.emailNotifications !== false) {
+      try {
+        await emailService.sendCommentLikedNotification(
+          user.email,
+          user.name || user.username,
+          likerName,
+          comment.website.title,
+          comment.content.substring(0, 100) + (comment.content.length > 100 ? '...' : ''),
+          comment.website.slug
+        );
+      } catch (error) {
+        console.error('Failed to send comment liked email notification:', error);
+      }
+    }
   }
 }

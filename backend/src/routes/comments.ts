@@ -18,7 +18,7 @@ const updateCommentSchema = Joi.object({
   content: Joi.string().min(1).max(1000).required()
 });
 
-// 获取网站的评论列表
+// 获取网站的评论列表（支持多级嵌套）
 router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
   const { websiteId } = req.params;
   const { page = 1, pageSize = 20 } = req.query;
@@ -58,6 +58,12 @@ router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request
             avatar: true
           }
         },
+        ...(req.user && {
+          likedBy: {
+            where: { id: (req as AuthenticatedRequest).user!.id },
+            select: { id: true }
+          }
+        }),
         replies: {
           include: {
             author: {
@@ -66,6 +72,34 @@ router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request
                 username: true,
                 name: true,
                 avatar: true
+              }
+            },
+            ...(req.user && {
+              likedBy: {
+                where: { id: (req as AuthenticatedRequest).user!.id },
+                select: { id: true }
+              }
+            }),
+            // 支持多级回复
+            replies: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    username: true,
+                    name: true,
+                    avatar: true
+                  }
+                },
+                ...(req.user && {
+                  likedBy: {
+                    where: { id: (req as AuthenticatedRequest).user!.id },
+                    select: { id: true }
+                  }
+                })
+              },
+              orderBy: {
+                createdAt: 'asc'
               }
             }
           },
@@ -132,12 +166,17 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
     });
   }
 
-  // 如果是回复，验证父评论是否存在
+  // 如果是回复，验证父评论是否存在并确定层级
+  let finalParentId = parentId;
   if (parentId) {
     const parentComment = await prisma.comment.findFirst({
       where: {
         id: parentId,
         websiteId: websiteId
+      },
+      select: {
+        id: true,
+        parentId: true
       }
     });
 
@@ -147,6 +186,11 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
         code: 'PARENT_COMMENT_NOT_FOUND'
       });
     }
+
+    // 如果父评论本身就是回复，则将新回复挂在顶级评论下（限制层级深度）
+    if (parentComment.parentId) {
+      finalParentId = parentComment.parentId;
+    }
   }
 
   // 创建评论
@@ -155,7 +199,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
       content,
       websiteId,
       authorId: userId,
-      parentId
+      parentId: finalParentId
     },
     include: {
       author: {
@@ -293,6 +337,84 @@ router.delete('/:commentId', authenticate, asyncHandler(async (req: Authenticate
   res.json({
     message: 'Comment deleted successfully'
   });
+}));
+
+// 点赞/取消点赞评论
+router.put('/:commentId/like', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { commentId } = req.params;
+  const userId = req.user!.id;
+
+  if (!commentId || isNaN(parseInt(commentId))) {
+    return res.status(400).json({
+      error: 'Invalid comment ID',
+      code: 'INVALID_COMMENT_ID'
+    });
+  }
+
+  // 查找评论
+  const comment = await prisma.comment.findUnique({
+    where: { id: parseInt(commentId) },
+    include: {
+      likedBy: {
+        where: { id: userId },
+        select: { id: true }
+      }
+    }
+  });
+
+  if (!comment) {
+    return res.status(404).json({
+      error: 'Comment not found',
+      code: 'COMMENT_NOT_FOUND'
+    });
+  }
+
+  const isLiked = comment.likedBy.length > 0;
+
+  if (isLiked) {
+    // 取消点赞
+    await prisma.comment.update({
+      where: { id: parseInt(commentId) },
+      data: {
+        likedBy: { disconnect: { id: userId } },
+        likeCount: { decrement: 1 }
+      }
+    });
+
+    res.json({
+      message: 'Comment like removed successfully',
+      action: 'unlike',
+      likeCount: Math.max(0, comment.likeCount - 1),
+      isLiked: false
+    });
+  } else {
+    // 添加点赞
+    await prisma.comment.update({
+      where: { id: parseInt(commentId) },
+      data: {
+        likedBy: { connect: { id: userId } },
+        likeCount: { increment: 1 }
+      }
+    });
+
+    // 发送点赞通知（不通知自己）
+    try {
+      if (comment.authorId !== userId) {
+        const user = req.user!;
+        const likerName = user.name || user.username;
+        await NotificationService.notifyCommentLiked(parseInt(commentId), likerName);
+      }
+    } catch (notificationError) {
+      console.error('Failed to send comment like notification:', notificationError);
+    }
+
+    res.json({
+      message: 'Comment liked successfully',
+      action: 'like',
+      likeCount: comment.likeCount + 1,
+      isLiked: true
+    });
+  }
 }));
 
 export default router;

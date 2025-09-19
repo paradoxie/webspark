@@ -11,9 +11,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 简单的管理员权限检查（用户ID为1）
-    // 在实际生产环境中，应该有更好的角色管理系统
-    if (session.user.id !== '1') {
+    // 检查用户是否为管理员 - 使用角色属性而非硬编码ID
+    const userRole = (session.user as any)?.role;
+    if (userRole !== 'ADMIN' && userRole !== 'MODERATOR') {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 

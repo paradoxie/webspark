@@ -4,8 +4,9 @@ import { useSession } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { getTagColorClasses } from '@/lib/tagColors';
 
 interface UserStats {
   totalWorks: number;
@@ -49,6 +50,7 @@ interface Achievement {
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [userWorks, setUserWorks] = useState<Website[]>([]);
@@ -71,6 +73,14 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    // 检查URL参数中的tab
+    const tab = searchParams.get('tab');
+    if (tab && ['overview', 'works', 'bookmarks', 'achievements'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     if (session?.user) {
       loadDashboardData();
     }
@@ -80,7 +90,7 @@ export default function DashboardPage() {
     setIsLoading(true);
     try {
       // 获取用户的作品
-      const worksResponse = await fetch('/api/user/websites');
+      const worksResponse = await fetch('/api/users/me/websites');
       if (worksResponse.ok) {
         const worksData = await worksResponse.json();
         setUserWorks(worksData.data);
@@ -105,14 +115,15 @@ export default function DashboardPage() {
           totalWorks: worksData.data.length,
           totalLikes,
           totalViews,
-          totalBookmarks: 0, // TODO: 实现收藏功能后更新
-          monthlyViews: Math.floor(totalViews * 0.3), // 简单估算
-          weeklyLikes: Math.floor(totalLikes * 0.1) // 简单估算
+          totalBookmarks: 0, // 将在收藏数据加载后更新
+          monthlyViews: 0, // 将基于真实数据计算
+          weeklyLikes: 0 // 将基于真实数据计算
         };
         
         setUserStats(currentUserStats);
 
         // 生成成就数据（基于真实统计）
+        const now = new Date();
         const newAchievements: Achievement[] = [
           {
             id: 'first_submission',
@@ -120,7 +131,7 @@ export default function DashboardPage() {
             description: '提交你的第一个作品',
             icon: '🚀',
             unlocked: currentUserStats.totalWorks > 0,
-            unlockedAt: currentUserStats.totalWorks > 0 ? '2024-01-05' : undefined
+            unlockedAt: currentUserStats.totalWorks > 0 ? now.toISOString().split('T')[0] : undefined
           },
           {
             id: 'popular_creator',
@@ -128,7 +139,7 @@ export default function DashboardPage() {
             description: '获得100个点赞',
             icon: '⭐',
             unlocked: currentUserStats.totalLikes >= 100,
-            unlockedAt: currentUserStats.totalLikes >= 100 ? '2024-01-15' : undefined
+            unlockedAt: currentUserStats.totalLikes >= 100 ? now.toISOString().split('T')[0] : undefined
           },
           {
             id: 'prolific_creator',
@@ -155,12 +166,17 @@ export default function DashboardPage() {
       }
 
       // 获取收藏的作品
-      const bookmarksResponse = await fetch('/api/user/bookmarks');
+      const bookmarksResponse = await fetch('/api/users/me/bookmarks');
       if (bookmarksResponse.ok) {
         const bookmarksData = await bookmarksResponse.json();
         setBookmarkedWorks(bookmarksData.data);
+
+        // 更新收藏统计
+        if (userStats) {
+          setUserStats(prev => prev ? { ...prev, totalBookmarks: bookmarksData.data.length } : null);
+        }
       } else {
-        console.log('Failed to load bookmarks (endpoint may not exist yet)');
+        console.log('Failed to load bookmarks:', bookmarksResponse.status);
         setBookmarkedWorks([]);
       }
 
@@ -217,19 +233,6 @@ export default function DashboardPage() {
         {config.label}
       </span>
     );
-  };
-
-  const getTagStyle = (color?: string) => {
-    const colorMap = {
-      blue: 'bg-blue-50 text-blue-700 border-blue-200',
-      green: 'bg-green-50 text-green-700 border-green-200',
-      purple: 'bg-purple-50 text-purple-700 border-purple-200',
-      orange: 'bg-orange-50 text-orange-700 border-orange-200',
-      gray: 'bg-gray-50 text-gray-700 border-gray-200',
-      black: 'bg-gray-100 text-gray-900 border-gray-300'
-    };
-    
-    return colorMap[color as keyof typeof colorMap] || colorMap.gray;
   };
 
   const formatDate = (dateString: string) => {
@@ -312,33 +315,33 @@ export default function DashboardPage() {
             {/* 统计卡片 */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
-                { 
-                  title: '总作品数', 
-                  value: userStats?.totalWorks || 0, 
+                {
+                  title: '总作品数',
+                  value: userStats?.totalWorks || 0,
                   icon: '🎨',
                   color: 'from-blue-500 to-blue-600',
-                  change: '+2 本月'
+                  change: '已发布作品'
                 },
-                { 
-                  title: '总点赞数', 
-                  value: userStats?.totalLikes || 0, 
+                {
+                  title: '总点赞数',
+                  value: userStats?.totalLikes || 0,
                   icon: '❤️',
                   color: 'from-red-500 to-red-600',
-                  change: `+${userStats?.weeklyLikes || 0} 本周`
+                  change: '获得的点赞'
                 },
-                { 
-                  title: '总浏览量', 
-                  value: userStats?.totalViews || 0, 
+                {
+                  title: '总浏览量',
+                  value: userStats?.totalViews || 0,
                   icon: '👁️',
                   color: 'from-green-500 to-green-600',
-                  change: `+${userStats?.monthlyViews || 0} 本月`
+                  change: '总浏览次数'
                 },
-                { 
-                  title: '收藏数', 
-                  value: userStats?.totalBookmarks || 0, 
+                {
+                  title: '收藏数',
+                  value: userStats?.totalBookmarks || 0,
                   icon: '🔖',
                   color: 'from-purple-500 to-purple-600',
-                  change: '+12 本月'
+                  change: '收藏的作品'
                 }
               ].map((stat, index) => (
                 <div 
@@ -536,7 +539,7 @@ export default function DashboardPage() {
                       {work.tags.map((tag) => (
                         <span
                           key={tag.id}
-                          className={`px-2 py-1 rounded-lg text-xs font-medium border ${getTagStyle(tag.color)}`}
+                          className={`px-2 py-1 rounded-lg text-xs font-medium border ${getTagColorClasses(tag.color)}`}
                         >
                           {tag.name}
                         </span>
@@ -620,7 +623,7 @@ export default function DashboardPage() {
                       {work.tags.map((tag) => (
                         <span
                           key={tag.id}
-                          className={`px-2 py-1 rounded-lg text-xs font-medium border ${getTagStyle(tag.color)}`}
+                          className={`px-2 py-1 rounded-lg text-xs font-medium border ${getTagColorClasses(tag.color)}`}
                         >
                           {tag.name}
                         </span>

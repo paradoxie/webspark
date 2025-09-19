@@ -15,6 +15,7 @@ const createWebsiteSchema = Joi.object({
   shortDescription: Joi.string().min(20).max(160).required(),
   description: Joi.string().min(100).required(),
   sourceUrl: Joi.string().uri().optional().allow(''),
+  screenshots: Joi.array().items(Joi.string().uri()).max(5).optional(),
   tagIds: Joi.array().items(Joi.number()).min(1).max(5).required(),
   isHiring: Joi.boolean().optional()
 });
@@ -119,51 +120,58 @@ router.get('/', optionalAuth, asyncHandler(async (req: Request, res: Response) =
   ]);
 
   // 添加用户交互信息
-  const websitesWithUserData = await Promise.all(
-    websites.map(async (website) => {
+  let websitesWithUserData = websites;
+
+  if (userId) {
+    // 一次性查询用户的所有点赞和收藏，避免N+1查询问题
+    const websiteIds = websites.map(w => w.id);
+    const [userLikes, userBookmarks] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          likedSites: {
+            where: { id: { in: websiteIds } },
+            select: { id: true }
+          }
+        }
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          bookmarks: {
+            where: { id: { in: websiteIds } },
+            select: { id: true }
+          }
+        }
+      })
+    ]);
+
+    const likedIds = new Set(userLikes?.likedSites.map(w => w.id) || []);
+    const bookmarkedIds = new Set(userBookmarks?.bookmarks.map(w => w.id) || []);
+
+    websitesWithUserData = websites.map(website => {
       // 计算分数 (热度)
       const score = (website.likeCount * 5) + (new Date(website.createdAt).getTime() / 10000);
-      
-      // 检查当前用户是否已点赞/收藏
-      let isLiked = false;
-      let isBookmarked = false;
-      
-      if (userId) {
-        const [likeRecord, bookmarkRecord] = await Promise.all([
-          prisma.user.findFirst({
-            where: {
-              id: userId,
-              likedSites: {
-                some: {
-                  id: website.id
-                }
-              }
-            }
-          }),
-          prisma.user.findFirst({
-            where: {
-              id: userId,
-              bookmarks: {
-                some: {
-                  id: website.id
-                }
-              }
-            }
-          })
-        ]);
-        
-        isLiked = !!likeRecord;
-        isBookmarked = !!bookmarkRecord;
-      }
 
       return {
         ...website,
         score,
-        isLiked,
-        isBookmarked
+        isLiked: likedIds.has(website.id),
+        isBookmarked: bookmarkedIds.has(website.id)
       };
-    })
-  );
+    });
+  } else {
+    // 未登录用户，直接添加score但不添加用户交互信息
+    websitesWithUserData = websites.map(website => {
+      const score = (website.likeCount * 5) + (new Date(website.createdAt).getTime() / 10000);
+      return {
+        ...website,
+        score,
+        isLiked: false,
+        isBookmarked: false
+      };
+    });
+  }
 
   res.json({
     data: websitesWithUserData,
@@ -380,6 +388,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
     description: Joi.string().min(100).required(),
     tags: Joi.array().items(Joi.string()).min(1).max(5).required(),
     sourceUrl: Joi.string().uri().optional().allow(''),
+    screenshots: Joi.array().items(Joi.string().uri()).max(5).optional(),
     categoryId: Joi.number().required().min(1),
     isHiring: Joi.boolean().optional()
   });
@@ -393,7 +402,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
     });
   }
 
-  const { url, title, shortDescription, description, tags, sourceUrl, categoryId, isHiring } = value;
+  const { url, title, shortDescription, description, tags, sourceUrl, screenshots, categoryId, isHiring } = value;
 
   // 验证分类是否存在
   const category = await prisma.category.findUnique({
@@ -423,7 +432,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
   }
 
   // 生成唯一slug
-  const baseSlug = slugify(title, { lower: true, strict: true });
+  const baseSlug = generateSlug(title);
   const slug = `${baseSlug}-${Date.now()}`;
 
   // 处理标签 - 获取或创建标签ID
@@ -435,9 +444,9 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
 
     if (!tag) {
       tag = await prisma.tag.create({
-        data: { 
+        data: {
           name: tagName,
-          slug: slugify(tagName, { lower: true, strict: true }) + '-' + Date.now()
+          slug: generateSlug(tagName) + '-' + Date.now()
         }
       });
     }
@@ -453,6 +462,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
       shortDescription,
       description,
       sourceUrl: sourceUrl || null,
+      screenshots: screenshots || [],
       authorId: req.user!.id,
       categoryId,
       status: 'PENDING',
@@ -658,10 +668,25 @@ router.get('/search', optionalAuth, asyncHandler(async (req: AuthenticatedReques
     deletedAt: null
   };
 
+  // 标签过滤条件
+  const tagConditions = [];
+  if (tags) {
+    const tagArray = (tags as string).split(',').filter(Boolean);
+    if (tagArray.length > 0) {
+      tagConditions.push({
+        tags: {
+          some: {
+            slug: { in: tagArray }
+          }
+        }
+      });
+    }
+  }
+
   // 关键词搜索
   if (q) {
     const searchTerm = q as string;
-    where.OR = [
+    const searchConditions = [
       { title: { contains: searchTerm, mode: 'insensitive' } },
       { shortDescription: { contains: searchTerm, mode: 'insensitive' } },
       { description: { contains: searchTerm, mode: 'insensitive' } },
@@ -669,18 +694,19 @@ router.get('/search', optionalAuth, asyncHandler(async (req: AuthenticatedReques
       { author: { name: { contains: searchTerm, mode: 'insensitive' } } },
       { author: { username: { contains: searchTerm, mode: 'insensitive' } } }
     ];
-  }
 
-  // 标签过滤
-  if (tags) {
-    const tagArray = (tags as string).split(',').filter(Boolean);
-    if (tagArray.length > 0) {
-      where.tags = {
-        some: {
-          slug: { in: tagArray }
-        }
-      };
+    // 如果有标签过滤，将其合并到搜索条件中
+    if (tagConditions.length > 0) {
+      where.AND = [
+        { OR: searchConditions },
+        ...tagConditions
+      ];
+    } else {
+      where.OR = searchConditions;
     }
+  } else if (tagConditions.length > 0) {
+    // 只有标签过滤，没有关键词搜索
+    where.AND = tagConditions;
   }
 
   // 作者过滤
@@ -851,51 +877,59 @@ router.get('/featured', optionalAuth, asyncHandler(async (req: Request, res: Res
   });
 
   // 添加用户交互信息
-  const websitesWithUserData = await Promise.all(
-    websites.map(async (website) => {
+  let websitesWithUserData;
+
+  if (userId) {
+    // 批量查询用户交互以避免N+1问题
+    const websiteIds = websites.map(w => w.id);
+    const [userLikes, userBookmarks] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          likedSites: {
+            where: { id: { in: websiteIds } },
+            select: { id: true }
+          }
+        }
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          bookmarks: {
+            where: { id: { in: websiteIds } },
+            select: { id: true }
+          }
+        }
+      })
+    ]);
+
+    const likedIds = new Set(userLikes?.likedSites.map(w => w.id) || []);
+    const bookmarkedIds = new Set(userBookmarks?.bookmarks.map(w => w.id) || []);
+
+    websitesWithUserData = websites.map((website) => {
       // 计算分数 (热度)
       const score = (website.likeCount * 5) + (new Date(website.createdAt).getTime() / 10000);
-      
-      // 检查当前用户是否已点赞/收藏
-      let isLiked = false;
-      let isBookmarked = false;
-      
-      if (userId) {
-        const [likeRecord, bookmarkRecord] = await Promise.all([
-          prisma.user.findFirst({
-            where: {
-              id: userId,
-              likedSites: {
-                some: {
-                  id: website.id
-                }
-              }
-            }
-          }),
-          prisma.user.findFirst({
-            where: {
-              id: userId,
-              bookmarks: {
-                some: {
-                  id: website.id
-                }
-              }
-            }
-          })
-        ]);
-        
-        isLiked = !!likeRecord;
-        isBookmarked = !!bookmarkRecord;
-      }
 
       return {
         ...website,
         score,
-        isLiked,
-        isBookmarked
+        isLiked: likedIds.has(website.id),
+        isBookmarked: bookmarkedIds.has(website.id)
       };
-    })
-  );
+    });
+  } else {
+    websitesWithUserData = websites.map((website) => {
+      // 计算分数 (热度)
+      const score = (website.likeCount * 5) + (new Date(website.createdAt).getTime() / 10000);
+
+      return {
+        ...website,
+        score,
+        isLiked: false,
+        isBookmarked: false
+      };
+    });
+  }
 
   res.json({
     data: websitesWithUserData

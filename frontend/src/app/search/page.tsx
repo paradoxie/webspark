@@ -1,6 +1,6 @@
 import { Metadata } from 'next'
 import { Suspense } from 'react'
-import SearchContent from '@/components/search/SearchContent'
+import AdvancedSearchContent from '@/components/search/AdvancedSearchContent'
 import Breadcrumb from '@/components/common/Breadcrumb'
 
 interface PageProps {
@@ -102,7 +102,7 @@ export default function SearchPage({ searchParams }: PageProps) {
 
           {/* 搜索内容组件 */}
           <Suspense fallback={<SearchFallback />}>
-            <SearchContent initialQuery={query} initialType={type} />
+            <AdvancedSearchContent initialQuery={query} initialType={type} />
           </Suspense>
         </div>
       </div>

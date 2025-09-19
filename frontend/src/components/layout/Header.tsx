@@ -5,6 +5,7 @@ import { useSession, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import NotificationBell from '@/components/common/NotificationBell';
+import ThemeToggle from '@/components/common/ThemeToggle';
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -44,14 +45,16 @@ export default function Header() {
     { name: '作品', href: '/sites', icon: '🎨' },
     { name: '分类', href: '/categories', icon: '📂' },
     { name: '标签', href: '/tags', icon: '🏷️' },
-    { name: '博客', href: '/blog', icon: '📚' },
-    { name: '关于', href: '/about', icon: 'ℹ️' },
+    { name: '搜索', href: '/search', icon: '🔍' },
+    { name: '数据分析', href: '/analytics', icon: '📊' },
   ];
 
   const userNavigation = [
-    { name: '个人中心', href: '/dashboard', icon: '👤' },
-    { name: '我的作品', href: '/dashboard/websites', icon: '📂' },
-    { name: '我的收藏', href: '/dashboard/bookmarks', icon: '❤️' },
+    { name: '我的收藏', href: '/profile/bookmarks', icon: '❤️' },
+    { name: '我的点赞', href: '/profile/likes', icon: '👍' },
+    { name: '我的作品', href: '/profile/websites', icon: '📂' },
+    { name: '关注动态', href: '/following', icon: '📰' },
+    { name: '个人设置', href: '/settings', icon: '⚙️' },
     { name: '提交作品', href: '/submit', icon: '➕' },
   ];
 
@@ -71,8 +74,8 @@ export default function Header() {
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           isScrolled
-            ? 'bg-white/80 backdrop-blur-xl shadow-lg shadow-slate-200/50'
-            : 'bg-white/60 backdrop-blur-sm'
+            ? 'bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-lg shadow-slate-200/50 dark:shadow-slate-900/50'
+            : 'bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm'
         }`}
       >
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -92,7 +95,7 @@ export default function Header() {
                 <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                   WebSpark.club
                 </h1>
-                <p className="text-xs text-slate-500 -mt-1">开发者创意社区</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 -mt-1">开发者创意社区</p>
               </div>
             </Link>
 
@@ -104,8 +107,8 @@ export default function Header() {
                   href={item.href}
                   className={`relative px-4 py-2 rounded-xl font-medium text-sm transition-all duration-300 group ${
                     isActivePath(item.href)
-                      ? 'text-blue-600 bg-blue-50'
-                      : 'text-slate-700 hover:text-blue-600 hover:bg-blue-50/50'
+                      ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20'
                   }`}
                 >
                   <span className="relative z-10 flex items-center space-x-2">
@@ -121,7 +124,10 @@ export default function Header() {
             </div>
 
             {/* User Actions */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+              
               {status === 'loading' ? (
                 <div className="w-8 h-8 bg-slate-200 rounded-full animate-pulse"></div>
               ) : session ? (
@@ -153,7 +159,7 @@ export default function Header() {
                       />
                       <div className="hidden sm:block text-left">
                         <p className="text-sm font-medium text-slate-700">{session.user?.name}</p>
-                        <p className="text-xs text-slate-500">@{session.user?.name?.toLowerCase().replace(/\s+/g, '')}</p>
+                        <p className="text-xs text-slate-500">@{(session.user as any)?.login || session.user?.name?.toLowerCase().replace(/\s+/g, '') || 'user'}</p>
                       </div>
                       <svg 
                         className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`}
@@ -218,7 +224,7 @@ export default function Header() {
               ) : (
                 <div className="flex items-center space-x-3">
                   <Link
-                    href="/auth/signin"
+                    href={`/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`}
                     className="px-4 py-2 text-slate-700 font-medium rounded-xl hover:text-blue-600 hover:bg-blue-50 transition-all duration-200"
                   >
                     登录
@@ -355,7 +361,7 @@ export default function Header() {
               ) : (
                 <div className="space-y-3">
                   <Link
-                    href="/auth/signin"
+                    href={`/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block w-full p-3 text-center font-semibold text-slate-700 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors duration-200"
                   >

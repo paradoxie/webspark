@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import ImageUpload from '@/components/common/ImageUpload';
 
 interface SubmitFormData {
   url: string;
@@ -14,6 +15,7 @@ interface SubmitFormData {
   sourceUrl: string;
   isHiring: boolean;
   categoryId: number | null;
+  screenshots: string[];
 }
 
 interface Tag {
@@ -51,7 +53,8 @@ export default function SubmitPage() {
     tags: [],
     sourceUrl: '',
     isHiring: false,
-    categoryId: null
+    categoryId: null,
+    screenshots: []
   });
 
   // 获取可用标签和分类
@@ -160,8 +163,15 @@ export default function SubmitPage() {
       });
 
       if (response.ok) {
+        const responseData = await response.json();
         toast.success('作品提交成功！等待审核中...');
-        router.push('/dashboard');
+
+        // 如果返回了作品数据，跳转到作品详情页；否则跳转到dashboard
+        if (responseData.data && responseData.data.slug) {
+          router.push(`/sites/${responseData.data.slug}`);
+        } else {
+          router.push('/dashboard?tab=works');
+        }
       } else {
         const errorData = await response.json();
         toast.error(errorData.error || '提交失败，请重试');
@@ -375,6 +385,51 @@ export default function SubmitPage() {
                 </div>
               )}
               {errors.tags && <p className="mt-1 text-sm text-red-600">{errors.tags}</p>}
+            </div>
+
+            {/* 作品截图 */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                作品截图 (可选)
+              </label>
+              <ImageUpload
+                type="screenshot"
+                multiple={true}
+                maxFiles={5}
+                onUploadMultiple={(urls) => setFormData(prev => ({ 
+                  ...prev, 
+                  screenshots: [...prev.screenshots, ...urls] 
+                }))}
+                className="w-full"
+              />
+              
+              {/* 已上传的截图预览 */}
+              {formData.screenshots.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-slate-700 mb-3">已上传的截图：</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {formData.screenshots.map((screenshot, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={screenshot}
+                          alt={`截图 ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg border border-slate-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            screenshots: prev.screenshots.filter((_, i) => i !== index)
+                          }))}
+                          className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs hover:bg-red-600"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 源码链接 */}

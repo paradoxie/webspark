@@ -49,23 +49,48 @@ async function getTopCategories(): Promise<Category[]> {
   try {
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/categories/top/3`,
-      { 
+      {
         next: { revalidate: 1800 }, // 30分钟缓存
         headers: {
           'Content-Type': 'application/json'
         }
       }
     )
-    
+
     if (!response.ok) {
       throw new Error('Failed to fetch top categories')
     }
-    
+
     const data = await response.json()
     return data.data || []
   } catch (error) {
     console.error('Error fetching top categories:', error)
     return []
+  }
+}
+
+// 获取公共统计数据
+async function getPublicStats() {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/stats/public`,
+      {
+        next: { revalidate: 3600 }, // 1小时缓存
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch public stats')
+    }
+
+    const data = await response.json()
+    return data.data || { totalUsers: 0, totalWebsites: 0, totalCategories: 0 }
+  } catch (error) {
+    console.error('Error fetching public stats:', error)
+    return { totalUsers: 0, totalWebsites: 0, totalCategories: 0 }
   }
 }
 
@@ -134,7 +159,10 @@ export const metadata: Metadata = {
 
 // 服务端渲染首页
 export default async function HomePage() {
-  const topCategories = await getTopCategories()
+  const [topCategories, publicStats] = await Promise.all([
+    getTopCategories(),
+    getPublicStats()
+  ])
 
   // 结构化数据
   const jsonLd = {
@@ -192,7 +220,7 @@ export default async function HomePage() {
                   <div className="text-sm">热门分类</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-white">1000+</div>
+                  <div className="text-2xl font-bold text-white">{publicStats.totalUsers}+</div>
                   <div className="text-sm">开发者</div>
                 </div>
               </div>

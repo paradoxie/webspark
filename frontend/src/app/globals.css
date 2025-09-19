@@ -1,6 +1,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import './theme.css';
 
 /* 自定义CSS变量 */
 :root {

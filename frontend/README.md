@@ -1,119 +1,157 @@
 # WebSpark.club Frontend
 
-这是WebSpark.club项目的前端应用，使用Next.js 14和TypeScript构建。
+WebSpark.club项目的前端应用，使用Next.js 14和TypeScript构建的现代化Web开发者作品展示平台。
 
-## 技术栈
+## 🚀 技术栈
 
 - **框架**: Next.js 14 (App Router)
 - **语言**: TypeScript
-- **样式**: Tailwind CSS
+- **样式**: Tailwind CSS + 暗色主题支持
 - **表单处理**: React Hook Form + Zod
 - **状态管理**: React状态 + SWR (数据获取)
-- **认证**: NextAuth.js
-- **UI库**: 自定义组件 + Lucide Icons
+- **认证**: NextAuth.js (GitHub OAuth)
+- **图表**: Chart.js + React Chart.js 2
+- **UI库**: 自定义组件库 + Lucide Icons
 
-## 项目结构
+## 📁 项目结构
 
 ```
 src/
 ├── app/                    # Next.js App Router页面
 │   ├── page.tsx           # 首页
-│   ├── submit/            # 作品提交页面
-│   ├── layout.tsx         # 根布局
-│   └── globals.css        # 全局样式
-├── components/            # 可复用组件
-│   ├── ui/               # 基础UI组件
-│   ├── features/         # 功能组件
-│   └── layout/           # 布局组件
-├── lib/                  # 工具库
-│   ├── api.ts           # API客户端
-│   ├── utils.ts         # 工具函数
-│   └── validation.ts    # Zod验证schemas
-└── types/               # TypeScript类型定义
-    ├── api.ts           # API相关类型
-    ├── website.ts       # 作品类型
-    ├── user.ts          # 用户类型
-    └── tag.ts           # 标签类型
+│   ├── sites/             # 网站详情页
+│   ├── submit/            # 作品提交页
+│   ├── dashboard/         # 用户面板
+│   ├── analytics/         # 数据分析页面
+│   └── api/               # API路由(代理到后端)
+├── components/            # React组件
+│   ├── analytics/         # 数据分析组件
+│   ├── common/            # 通用组件
+│   ├── search/            # 搜索组件
+│   ├── ui/                # 基础UI组件
+│   └── layout/            # 布局组件
+├── contexts/              # React上下文
+│   └── ThemeContext.tsx   # 主题上下文
+├── hooks/                 # 自定义钩子
+│   └── useWebsiteActions.ts # 网站操作钩子
+├── lib/                   # 工具库
+│   ├── auth.ts           # 认证配置
+│   └── api.ts            # API客户端
+└── styles/               # 全局样式
 ```
 
-## 安装依赖
+## 🌟 核心功能
+
+### 用户界面
+- 🎨 现代化设计语言
+- 🌙 完整的暗色主题支持
+- 📱 响应式设计，全设备适配
+- ♿ 无障碍访问支持
+
+### 高级功能
+- 🔍 多维度高级搜索
+- 📊 交互式数据分析图表
+- 🖼️ 图片上传和管理
+- 💬 嵌套评论系统
+- 🔔 实时通知系统
+
+### 开发体验
+- 📝 完整的TypeScript类型支持
+- 🧩 高度复用的组件库
+- 🎯 自定义Hooks封装
+- ⚡ 优化的性能和加载速度
+
+## 🛠️ 开发命令
 
 ```bash
+# 安装依赖
 npm install
+
+# 启动开发服务器
+npm run dev          # http://localhost:3000
+
+# 生产构建
+npm run build
+npm run start
+
+# 代码质量检查
+npm run lint
+npm run type-check
+
+# 代码格式化
+npm run format
 ```
 
-## 环境变量
+## 🔧 环境配置
 
-复制 `.env.example` 到 `.env.local` 并填入正确的值：
+创建 `.env.local` 文件：
 
 ```env
-NEXT_PUBLIC_STRAPI_API_URL=http://localhost:1337/api
-NEXT_PUBLIC_STRAPI_URL=http://localhost:1337
+# NextAuth配置
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-nextauth-secret
+
+# GitHub OAuth
 GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
+
+# API配置
+NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-## 开发运行
+## 🎨 组件库
 
-```bash
-npm run dev
-```
+项目包含完整的可复用组件库：
 
-## 主要功能
+### 基础组件
+- `Button` - 多样式按钮组件
+- `Input` - 输入框组件
+- `Icon` - 图标组件
+- `Avatar` - 头像组件
+- `Tag` - 标签组件
 
-### 已实现
-- ✅ 项目基础结构
-- ✅ TypeScript类型定义
-- ✅ API客户端封装
-- ✅ 表单验证schemas
-- ✅ 基础UI组件
-- ✅ 首页布局
-- ✅ 作品提交页面
-- ✅ 设计系统配置
+### 复合组件
+- `WebsiteCard` - 网站卡片
+- `WebsiteGrid` - 网站网格布局
+- `Pagination` - 分页组件
+- `LoadingGrid` - 加载状态
+- `EmptyState` - 空状态
 
-### 待实现
-- ⏳ NextAuth.js认证集成
-- ⏳ 作品详情页面
-- ⏳ 用户个人中心
-- ⏳ 搜索和筛选功能
-- ⏳ 响应式优化
-- ⏳ 错误处理完善
-- ⏳ 加载状态优化
+### 高级组件
+- `AdvancedSearch` - 高级搜索
+- `ThemeToggle` - 主题切换
+- `ImageUpload` - 图片上传
+- `AnalyticsDashboard` - 数据分析面板
 
-## 设计系统
+## 📚 开发指南
 
-项目遵循统一的设计系统，主要颜色和样式定义在 `tailwind.config.js` 中：
+### 添加新页面
+1. 在 `src/app/` 下创建路由文件夹
+2. 创建 `page.tsx` 文件
+3. 导出默认React组件
 
-- **主色**: `blue-600` (#2563eb)
-- **次色**: `slate-500` (#64748b)
-- **背景**: `slate-50` (#f8fafc)
-- **反馈色**: 成功(green-500)、警告(yellow-500)、错误(red-600)、信息(sky-500)
+### 创建新组件
+1. 在适当的 `components/` 子目录创建
+2. 使用TypeScript定义Props接口
+3. 支持暗色主题样式
+4. 考虑可复用性
 
-## API集成
+### API集成
+1. 在 `src/lib/api.ts` 添加API函数
+2. 使用SWR进行数据获取
+3. 实现适当的错误处理
 
-前端通过 `lib/api.ts` 与Strapi后端通信，支持：
+## 🎯 性能优化
 
-- 作品的CRUD操作
-- 用户认证和授权
-- 点赞和收藏功能
-- 标签管理
-- 举报功能
+- ⚡ Next.js App Router优化
+- 🖼️ 图片自动优化
+- 📦 代码分割和懒加载
+- 💾 SWR数据缓存
+- 🚀 Cloudflare Pages部署
 
-## 构建部署
+## 🔗 相关链接
 
-```bash
-# 构建生产版本
-npm run build
-
-# 启动生产服务器
-npm run start
-```
-
-## 贡献指南
-
-1. 遵循TypeScript严格模式
-2. 使用Tailwind CSS进行样式开发
-3. 组件需要完整的类型定义
-4. 提交前运行类型检查: `npm run type-check` 
+- [项目主README](../README.md)
+- [后端README](../backend/README.md)
+- [部署指南](../DEPLOYMENT.md)
+- [开发指南](../CLAUDE.md) 
