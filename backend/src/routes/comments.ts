@@ -369,50 +369,105 @@ router.put('/:commentId/like', authenticate, asyncHandler(async (req: Authentica
     });
   }
 
-  const isLiked = comment.likedBy.length > 0;
+  try {
+    // 使用事务确保数据一致性
+    const result = await prisma.$transaction(async (tx) => {
+      // 检查是否已经点赞
+      const existingLike = await tx.commentLike.findUnique({
+        where: {
+          commentId_userId: {
+            commentId: parseInt(commentId),
+            userId: userId
+          }
+        }
+      });
 
-  if (isLiked) {
-    // 取消点赞
-    await prisma.comment.update({
-      where: { id: parseInt(commentId) },
-      data: {
-        likedBy: { disconnect: { id: userId } },
-        likeCount: { decrement: 1 }
+      let isLiked: boolean;
+      let updatedComment;
+
+      if (existingLike) {
+        // 取消点赞 - 使用事务确保所有操作成功
+        // 1. 删除CommentLike记录
+        await tx.commentLike.delete({
+          where: {
+            commentId_userId: {
+              commentId: parseInt(commentId),
+              userId: userId
+            }
+          }
+        });
+
+        // 2. 更新Comment的likedBy关系和likeCount
+        updatedComment = await tx.comment.update({
+          where: { id: parseInt(commentId) },
+          data: {
+            likedBy: {
+              disconnect: { id: userId }
+            },
+            likeCount: {
+              decrement: 1
+            }
+          },
+          select: {
+            id: true,
+            likeCount: true,
+            authorId: true
+          }
+        });
+        
+        isLiked = false;
+      } else {
+        // 添加点赞 - 使用事务确保所有操作成功
+        // 1. 创建CommentLike记录
+        await tx.commentLike.create({
+          data: {
+            commentId: parseInt(commentId),
+            userId: userId
+          }
+        });
+
+        // 2. 更新Comment的likedBy关系和likeCount
+        updatedComment = await tx.comment.update({
+          where: { id: parseInt(commentId) },
+          data: {
+            likedBy: {
+              connect: { id: userId }
+            },
+            likeCount: {
+              increment: 1
+            }
+          },
+          select: {
+            id: true,
+            likeCount: true,
+            authorId: true
+          }
+        });
+        
+        isLiked = true;
+
+        // 发送点赞通知（不通知自己）
+        if (updatedComment.authorId !== userId) {
+          const user = req.user!;
+          const likerName = user.name || user.username;
+          await NotificationService.notifyCommentLiked(parseInt(commentId), likerName);
+        }
       }
+
+      return { isLiked, likeCount: updatedComment.likeCount };
     });
 
     res.json({
-      message: 'Comment like removed successfully',
-      action: 'unlike',
-      likeCount: Math.max(0, comment.likeCount - 1),
-      isLiked: false
+      message: result.isLiked ? 'Comment liked successfully' : 'Comment like removed successfully',
+      action: result.isLiked ? 'like' : 'unlike',
+      likeCount: result.likeCount,
+      isLiked: result.isLiked
     });
-  } else {
-    // 添加点赞
-    await prisma.comment.update({
-      where: { id: parseInt(commentId) },
-      data: {
-        likedBy: { connect: { id: userId } },
-        likeCount: { increment: 1 }
-      }
-    });
-
-    // 发送点赞通知（不通知自己）
-    try {
-      if (comment.authorId !== userId) {
-        const user = req.user!;
-        const likerName = user.name || user.username;
-        await NotificationService.notifyCommentLiked(parseInt(commentId), likerName);
-      }
-    } catch (notificationError) {
-      console.error('Failed to send comment like notification:', notificationError);
-    }
-
-    res.json({
-      message: 'Comment liked successfully',
-      action: 'like',
-      likeCount: comment.likeCount + 1,
-      isLiked: true
+  } catch (error) {
+    console.error('Comment like toggle error:', error);
+    return res.status(500).json({
+      error: 'Failed to toggle comment like',
+      code: 'COMMENT_LIKE_TOGGLE_FAILED'
     });
   }
 }));

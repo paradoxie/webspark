@@ -216,7 +216,7 @@ export const userApi = {
   },
 
   async getUserBookmarks(token: string): Promise<ApiResponse<Website[]>> {
-    return apiRequest('/api/user/bookmarks', {
+    return apiRequest('/api/users/me/bookmarks', {
       headers: { Authorization: `Bearer ${token}` },
     });
   },

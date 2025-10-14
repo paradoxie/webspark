@@ -31,7 +31,11 @@ export default function FollowButton({
   const checkFollowStatus = async () => {
     try {
       setChecking(true);
-      const response = await fetch(`/api/users/${userId}/follow-status`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/users/${userId}/follow-status`, {
+        headers: {
+          'Authorization': `Bearer ${(session as any)?.accessToken}`
+        }
+      });
 
       if (response.ok) {
         const data = await response.json();
@@ -60,10 +64,11 @@ export default function FollowButton({
       setLoading(true);
 
       const method = isFollowing ? 'DELETE' : 'POST';
-      const response = await fetch(`/api/users/${userId}/follow`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/users/${userId}/follow`, {
         method,
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(session as any)?.accessToken}`
         },
       });
 

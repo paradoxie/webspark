@@ -43,11 +43,8 @@ export class CryptoUtils {
     }
     
     return jwt.sign(payload, secret, { 
-      expiresIn,
-      algorithm: 'HS256',
-      issuer: 'webspark.club',
-      audience: 'webspark.club'
-    });
+      expiresIn: expiresIn
+    } as jwt.SignOptions);
   }
 
   /**

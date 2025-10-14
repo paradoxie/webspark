@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import AdvancedSearch from './AdvancedSearch';
 import WebsiteCard from '../common/WebsiteCard';
 import Pagination from '../common/Pagination';
@@ -80,6 +81,7 @@ interface AdvancedSearchContentProps {
 export default function AdvancedSearchContent({ initialQuery, initialType }: AdvancedSearchContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   
   const [websites, setWebsites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,6 +92,7 @@ export default function AdvancedSearchContent({ initialQuery, initialType }: Adv
     total: 0
   });
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   // 初始化搜索
   useEffect(() => {
@@ -98,6 +101,46 @@ export default function AdvancedSearchContent({ initialQuery, initialType }: Adv
       performSearch(filters);
     }
   }, [initialQuery, searchParams]);
+
+  // 获取搜索历史
+  useEffect(() => {
+    if (session) {
+      fetchSearchHistory();
+    }
+  }, [session]);
+
+  const fetchSearchHistory = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/search-history/history?limit=10`, {
+        headers: {
+          'Authorization': `Bearer ${(session as any)?.accessToken}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const queries = data.data.map((item: any) => item.query);
+        setSearchHistory(queries);
+      }
+    } catch (error) {
+      console.error('Failed to fetch search history:', error);
+    }
+  };
+
+  const saveSearchHistory = async (query: string, resultCount: number) => {
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/search-history/history`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(session as any)?.accessToken}`
+        },
+        body: JSON.stringify({ query, resultCount })
+      });
+    } catch (error) {
+      console.error('Failed to save search history:', error);
+    }
+  };
 
   const parseUrlParams = (): SearchFilters => {
     return {
@@ -142,6 +185,11 @@ export default function AdvancedSearchContent({ initialQuery, initialType }: Adv
         setWebsites(data.data);
         setPagination(data.meta.pagination);
         setHasSearched(true);
+        
+        // 保存搜索历史（仅在用户登录且有搜索查询时）
+        if (session && filters.query && page === 1) {
+          saveSearchHistory(filters.query, data.meta.pagination.total);
+        }
       } else {
         const error = await response.json();
         toast.error(error.error || '搜索失败，请重试');

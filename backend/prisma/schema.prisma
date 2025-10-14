@@ -20,7 +20,9 @@ model User {
   location           String?
   emailNotifications Boolean  @default(true)
   isActive           Boolean  @default(true)
+  isHiring           Boolean  @default(false) // 添加招聘状态字段
   role               UserRole @default(USER)  // 用户角色
+  lastLoginAt        DateTime? // 添加最后登录时间
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -40,6 +42,14 @@ model User {
   // 保存的搜索
   savedSearches SavedSearch[]
   searchHistory SearchHistory[]
+
+  // 网站点击记录
+  websiteClicks WebsiteClick[]
+  websiteLikes  WebsiteLike[]
+  userBookmarks Bookmark[] @relation("UserBookmarks")
+  
+  // 推荐反馈
+  recommendationFeedbacks RecommendationFeedback[]
 
   @@map("users")
 }
@@ -73,6 +83,14 @@ model Website {
   reports       Report[]
   likedBy       User[]         @relation("UserLikes")
   bookmarkedBy  User[]         @relation("UserBookmarks")
+
+  // 新增关系
+  websiteClicks WebsiteClick[]
+  websiteLikes  WebsiteLike[]
+  bookmarks     Bookmark[]
+  
+  // 推荐反馈
+  recommendationFeedbacks RecommendationFeedback[]
 
   @@map("websites")
 }
@@ -202,6 +220,76 @@ model SearchHistory {
   @@map("search_history")
 }
 
+// 新增模型：网站点击记录
+model WebsiteClick {
+  id        Int      @id @default(autoincrement())
+  websiteId Int
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  
+  // 点击详情
+  ipAddress   String?  @db.VarChar(45)
+  userAgent   String?  @db.Text
+  referrer    String?  @db.VarChar(500)
+  clickType   String   @default("view") // view, external_link, etc.
+  
+  createdAt DateTime @default(now())
+
+  @@index([websiteId, createdAt])
+  @@index([userId, createdAt])
+  @@map("website_clicks")
+}
+
+// 新增模型：网站点赞记录
+model WebsiteLike {
+  id        Int      @id @default(autoincrement())
+  websiteId Int
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([websiteId, userId])
+  @@map("website_likes")
+}
+
+// 新增模型：收藏记录
+model Bookmark {
+  id        Int      @id @default(autoincrement())
+  websiteId Int
+  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation("UserBookmarks", fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([websiteId, userId])
+  @@map("bookmarks")
+}
+
+// 新增模型：推荐反馈
+model RecommendationFeedback {
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  websiteId          Int
+  website            Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  recommendationType RecommendationType
+  rating             Int      // 1-5 star rating
+  feedback           String?  @db.Text
+  context            Json?    // Additional context data
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, websiteId, recommendationType, createdAt(sort: Desc)], name: "unique_daily_feedback")
+  @@index([userId, createdAt])
+  @@index([websiteId, rating])
+  @@index([recommendationType, rating])
+  @@map("recommendation_feedback")
+}
+
 enum UserRole {
   USER
   ADMIN
@@ -236,4 +324,11 @@ enum NotificationType {
   COMMENT_LIKED
   USER_FOLLOWED
   SYSTEM
+}
+
+enum RecommendationType {
+  PERSONALIZED
+  SIMILAR_USERS
+  TRENDING
+  HYBRID
 } 

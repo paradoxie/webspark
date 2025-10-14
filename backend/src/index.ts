@@ -17,6 +17,9 @@ import {
 } from './middleware/security';
 import { CryptoUtils } from './utils/crypto';
 import { SecurityAuditLogger } from './utils/securityAudit';
+import { logger, httpLogger, systemMonitor, setupErrorMonitoring, createMonitoringRoutes } from './utils/monitoring';
+import structuredLogger from './utils/structuredLogger';
+import { errorNotificationMiddleware } from './services/errorNotificationService';
 
 // 导入路由
 import websiteRoutes from './routes/websites';
@@ -33,11 +36,22 @@ import searchRoutes from './routes/search';
 import securityRoutes from './routes/security';
 import analyticsRoutes from './routes/analytics';
 import statsRoutes from './routes/stats';
+import recommendationRoutes from './routes/recommendations';
+import searchHistoryRoutes from './routes/searchHistory';
+import activityRoutes from './routes/activity';
+import logRoutes from './routes/logs';
+import healthRoutes from './routes/health';
 
 const app = express();
 
+// 设置错误监控
+setupErrorMonitoring();
+
 // 基础配置
 app.set('trust proxy', 1);
+
+// HTTP请求日志
+app.use(httpLogger);
 
 // Session配置
 app.use(session({
@@ -95,6 +109,12 @@ app.use('/api/auth', validateUserData);
 // CSRF保护
 app.use('/api', validateCsrfToken);
 
+// 设置请求上下文（结构化日志）
+app.use((req, res, next) => {
+  structuredLogger.setRequestContext(req);
+  next();
+});
+
 // CSRF Token生成端点
 app.get('/api/csrf-token', (req, res) => {
   const token = CryptoUtils.generateCsrfToken();
@@ -104,16 +124,11 @@ app.get('/api/csrf-token', (req, res) => {
   res.json({ csrfToken: token });
 });
 
-// 健康检查
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: config.nodeEnv,
-    database: 'connected'
-  });
-});
+// 健康检查路由（不需要认证）
+app.use('/health', healthRoutes);
+
+// 监控路由（需要管理员权限或特定密钥）
+app.use('/monitoring', createMonitoringRoutes());
 
 // API路由
 app.use('/api/websites', websiteRoutes);
@@ -130,9 +145,16 @@ app.use('/api/search', searchRoutes);
 app.use('/api/security', securityRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/recommendations', recommendationRoutes);
+app.use('/api/search-history', searchHistoryRoutes);
+app.use('/api/activity', activityRoutes);
+app.use('/api/logs', logRoutes);
 
 // 静态文件服务
 app.use('/uploads', express.static('uploads'));
+
+// 错误通知中间件
+app.use(errorNotificationMiddleware);
 
 // 错误处理
 app.use(errorHandler);
@@ -170,8 +192,13 @@ SecurityAuditLogger.init().then(() => {
 app.listen(PORT, () => {
   console.log(`🚀 WebSpark Backend running on http://localhost:${PORT}`);
   console.log(`📊 Environment: ${config.nodeEnv}`);
-  console.log(`🗄️  Database connected`);
+  console.log('🗄️  Database connected');
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+  console.log(`📈 Monitoring: http://localhost:${PORT}/monitoring/metrics`);
+  
+  // 启动系统监控
+  systemMonitor.start(60000); // 每分钟收集一次系统指标
+  logger.info('System monitoring started');
 });
 
 export default app;

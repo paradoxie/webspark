@@ -70,7 +70,7 @@ export default function BookmarksPage() {
   const fetchBookmarks = async (pageNum: number = 1, reset: boolean = false) => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/user/bookmarks?page=${pageNum}&pageSize=12`);
+      const response = await fetch(`/api/users/me/bookmarks?page=${pageNum}&pageSize=12`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch bookmarks');

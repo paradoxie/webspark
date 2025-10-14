@@ -148,6 +148,189 @@ router.post('/websites/:id/toggle-featured', authenticate, requireAdmin, asyncHa
   });
 }));
 
+// 批量审核网站
+router.post('/websites/batch', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { action, websiteIds, reason } = req.body;
+  
+  if (!action || !websiteIds || !Array.isArray(websiteIds)) {
+    return res.status(400).json({ 
+      error: 'Invalid request data',
+      code: 'INVALID_REQUEST'
+    });
+  }
+
+  const validActions = ['approve', 'reject', 'feature', 'unfeature', 'delete'];
+  if (!validActions.includes(action)) {
+    return res.status(400).json({ 
+      error: 'Invalid action',
+      code: 'INVALID_ACTION'
+    });
+  }
+
+  const results = [];
+  const errors = [];
+
+  for (const websiteId of websiteIds) {
+    try {
+      let result;
+      
+      switch (action) {
+        case 'approve':
+          result = await prisma.website.update({
+            where: { id: parseInt(websiteId) },
+            data: { status: 'APPROVED' },
+            include: {
+              author: {
+                select: { id: true, email: true, name: true }
+              }
+            }
+          });
+          
+          // 发送通知
+          await NotificationService.createNotification({
+            userId: result.authorId,
+            type: 'WEBSITE_APPROVED',
+            title: '作品审核通过',
+            message: `您的作品"${result.title}"已通过审核！`,
+            websiteId: result.id
+          });
+          break;
+          
+        case 'reject':
+          result = await prisma.website.update({
+            where: { id: parseInt(websiteId) },
+            data: { status: 'REJECTED' },
+            include: {
+              author: {
+                select: { id: true, email: true, name: true }
+              }
+            }
+          });
+          
+          // 发送通知
+          await NotificationService.createNotification({
+            userId: result.authorId,
+            type: 'WEBSITE_REJECTED',
+            title: '作品审核未通过',
+            message: `您的作品"${result.title}"未通过审核。${reason ? `原因：${reason}` : ''}`,
+            websiteId: result.id
+          });
+          break;
+          
+        case 'feature':
+          result = await prisma.website.update({
+            where: { id: parseInt(websiteId) },
+            data: { featured: true }
+          });
+          break;
+          
+        case 'unfeature':
+          result = await prisma.website.update({
+            where: { id: parseInt(websiteId) },
+            data: { featured: false }
+          });
+          break;
+          
+        case 'delete':
+          result = await prisma.website.update({
+            where: { id: parseInt(websiteId) },
+            data: { deletedAt: new Date() }
+          });
+          break;
+      }
+      
+      results.push({ websiteId, success: true, data: result });
+    } catch (error) {
+      console.error(`Batch operation failed for website ${websiteId}:`, error);
+      errors.push({ websiteId, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  }
+
+  res.json({
+    message: `Batch ${action} operation completed`,
+    results,
+    errors,
+    summary: {
+      total: websiteIds.length,
+      successful: results.length,
+      failed: errors.length
+    }
+  });
+}));
+
+// 批量标签编辑
+router.post('/websites/batch-tags', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { websiteIds, addTags, removeTags } = req.body;
+  
+  if (!websiteIds || !Array.isArray(websiteIds)) {
+    return res.status(400).json({ 
+      error: 'Invalid website IDs',
+      code: 'INVALID_REQUEST'
+    });
+  }
+
+  const results = [];
+  const errors = [];
+
+  for (const websiteId of websiteIds) {
+    try {
+      const website = await prisma.website.findUnique({
+        where: { id: parseInt(websiteId) },
+        include: { tags: true }
+      });
+
+      if (!website) {
+        errors.push({ websiteId, error: 'Website not found' });
+        continue;
+      }
+
+      // 准备更新操作
+      const updateData: any = {};
+
+      if (addTags && addTags.length > 0) {
+        // 添加标签
+        const tagsToAdd = await prisma.tag.findMany({
+          where: { id: { in: addTags.map((id: any) => parseInt(id)) } }
+        });
+        
+        updateData.tags = {
+          connect: tagsToAdd.map(tag => ({ id: tag.id }))
+        };
+      }
+
+      if (removeTags && removeTags.length > 0) {
+        // 移除标签
+        updateData.tags = {
+          ...updateData.tags,
+          disconnect: removeTags.map((id: any) => ({ id: parseInt(id) }))
+        };
+      }
+
+      const result = await prisma.website.update({
+        where: { id: parseInt(websiteId) },
+        data: updateData,
+        include: { tags: true }
+      });
+
+      results.push({ websiteId, success: true, data: result });
+    } catch (error) {
+      console.error(`Batch tag operation failed for website ${websiteId}:`, error);
+      errors.push({ websiteId, error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  }
+
+  res.json({
+    message: 'Batch tag operation completed',
+    results,
+    errors,
+    summary: {
+      total: websiteIds.length,
+      successful: results.length,
+      failed: errors.length
+    }
+  });
+}));
+
 // 获取用户列表
 router.get('/users', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { page = 1, pageSize = 20, search } = req.query;

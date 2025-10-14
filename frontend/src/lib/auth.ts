@@ -70,16 +70,54 @@ export const authOptions: NextAuthOptions = {
 
       // 确保token中始终有accessToken
       if (!token.accessToken && token.sub) {
-        // 获取用户角色信息
-        const userInfo = {
-          sub: token.sub,
-          email: token.email,
-          name: token.name,
-          login: token.login || token.name?.toLowerCase().replace(/\s+/g, ''),
-          role: 'USER' // 默认角色，实际角色由后端验证
-        };
-        token.accessToken = Buffer.from(JSON.stringify(userInfo)).toString('base64');
-        token.userInfo = userInfo;
+        // 从后端获取用户角色信息
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/users/me`, {
+            headers: {
+              'Authorization': `Bearer ${Buffer.from(JSON.stringify({
+                sub: token.sub,
+                email: token.email,
+                name: token.name,
+                login: token.login || token.name?.toLowerCase().replace(/\s+/g, '')
+              })).toString('base64')}`
+            }
+          });
+          
+          if (response.ok) {
+            const userData = await response.json();
+            const userInfo = {
+              sub: token.sub,
+              email: token.email,
+              name: token.name,
+              login: token.login || token.name?.toLowerCase().replace(/\s+/g, ''),
+              role: userData.data.role || 'USER'
+            };
+            token.accessToken = Buffer.from(JSON.stringify(userInfo)).toString('base64');
+            token.userInfo = userInfo;
+            token.role = userData.data.role;
+          } else {
+            const userInfo = {
+              sub: token.sub,
+              email: token.email,
+              name: token.name,
+              login: token.login || token.name?.toLowerCase().replace(/\s+/g, ''),
+              role: 'USER'
+            };
+            token.accessToken = Buffer.from(JSON.stringify(userInfo)).toString('base64');
+            token.userInfo = userInfo;
+          }
+        } catch (error) {
+          console.error('Failed to fetch user role:', error);
+          const userInfo = {
+            sub: token.sub,
+            email: token.email,
+            name: token.name,
+            login: token.login || token.name?.toLowerCase().replace(/\s+/g, ''),
+            role: 'USER'
+          };
+          token.accessToken = Buffer.from(JSON.stringify(userInfo)).toString('base64');
+          token.userInfo = userInfo;
+        }
       }
 
       return token;
@@ -93,7 +131,7 @@ export const authOptions: NextAuthOptions = {
           ...session.user,
           id: token.sub,
           login: token.login || token.name?.toLowerCase().replace(/\s+/g, ''),
-          role: (token.userInfo as any)?.role || 'USER', // 从token中获取角色信息
+          role: token.role || (token.userInfo as any)?.role || 'USER', // 从token中获取角色信息
         }
       };
     },

@@ -1,435 +1,411 @@
-// 移动端性能和用户体验优化组件
-'use client'
+'use client';
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface MobileOptimizationProps {
-  children: React.ReactNode
+  onRefresh?: () => Promise<void>;
+  enablePullToRefresh?: boolean;
+  enableSwipeGestures?: boolean;
+  children: React.ReactNode;
 }
 
-// 检测设备类型
-function useDeviceDetection() {
-  const [device, setDevice] = useState<{
-    isMobile: boolean
-    isTablet: boolean
-    isDesktop: boolean
-    orientation: 'portrait' | 'landscape'
-    screenSize: 'sm' | 'md' | 'lg' | 'xl'
-  }>({
-    isMobile: false,
-    isTablet: false,
-    isDesktop: true,
-    orientation: 'landscape',
-    screenSize: 'lg'
-  })
+export default function MobileOptimization({
+  onRefresh,
+  enablePullToRefresh = true,
+  enableSwipeGestures = true,
+  children
+}: MobileOptimizationProps) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showFAB, setShowFAB] = useState(false);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
+  const touchStartX = useRef(0);
+  const lastScrollY = useRef(0);
+  const rafId = useRef<number>();
 
   useEffect(() => {
-    function detectDevice() {
-      const width = window.innerWidth
-      const height = window.innerHeight
-      const userAgent = navigator.userAgent.toLowerCase()
-      
-      const isMobile = width <= 768 || /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent)
-      const isTablet = width > 768 && width <= 1024
-      const isDesktop = width > 1024
-      
-      const orientation = height > width ? 'portrait' : 'landscape'
-      
-      let screenSize: 'sm' | 'md' | 'lg' | 'xl' = 'lg'
-      if (width <= 640) screenSize = 'sm'
-      else if (width <= 768) screenSize = 'md'
-      else if (width <= 1024) screenSize = 'lg'
-      else screenSize = 'xl'
+    // 检测移动设备
+    const checkMobile = () => {
+      setIsMobile(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+    };
 
-      setDevice({
-        isMobile,
-        isTablet,
-        isDesktop,
-        orientation,
-        screenSize
-      })
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    // 防止缩放
+    const preventZoom = (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+
+    // 滚动监听 - 显示/隐藏FAB
+    const handleScroll = () => {
+      if (rafId.current) return;
+      
+      rafId.current = requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        setShowFAB(currentScrollY > 200 && currentScrollY > lastScrollY.current);
+        lastScrollY.current = currentScrollY;
+        rafId.current = undefined;
+      });
+    };
+
+    if (isMobile) {
+      document.addEventListener('touchstart', preventZoom, { passive: false });
+      window.addEventListener('scroll', handleScroll, { passive: true });
     }
-
-    detectDevice()
-    window.addEventListener('resize', detectDevice)
-    window.addEventListener('orientationchange', detectDevice)
 
     return () => {
-      window.removeEventListener('resize', detectDevice)
-      window.removeEventListener('orientationchange', detectDevice)
-    }
-  }, [])
-
-  return device
-}
-
-// 移动端友好的触摸交互
-function useTouchInteractions() {
-  useEffect(() => {
-    // 禁用双击缩放（保留捏合缩放）
-    let lastTouchEnd = 0
-    document.addEventListener('touchend', function (event) {
-      const now = (new Date()).getTime()
-      if (now - lastTouchEnd <= 300) {
-        event.preventDefault()
+      document.removeEventListener('touchstart', preventZoom);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', checkMobile);
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
       }
-      lastTouchEnd = now
-    }, false)
+    };
+  }, [isMobile]);
 
-    // 改善滚动性能
-    document.addEventListener('touchstart', function(e) {
-      if (e.touches.length > 1) {
-        e.preventDefault()
-      }
-    }, { passive: false })
+  // 下拉刷新逻辑
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!enablePullToRefresh || !onRefresh) return;
+    
+    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+  }, [enablePullToRefresh, onRefresh]);
 
-    // 阻止默认的拖拽行为
-    document.addEventListener('touchmove', function(e) {
-      if (e.scale !== 1) {
-        e.preventDefault()
-      }
-    }, { passive: false })
-  }, [])
-}
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!enablePullToRefresh || !onRefresh || isRefreshing) return;
 
-// 移动端性能监控
-function useMobilePerformance() {
-  const [metrics, setMetrics] = useState<{
-    connectionType: string
-    effectiveType: string
-    downlink: number
-    rtt: number
-  } | null>(null)
+    const touchY = e.touches[0].clientY;
+    const touchX = e.touches[0].clientX;
+    const deltaY = touchY - touchStartY.current;
+    const deltaX = Math.abs(touchX - touchStartX.current);
 
-  useEffect(() => {
-    // 检测网络状态
-    if ('connection' in navigator) {
-      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection
+    // 检查是否在页面顶部且是垂直滑动
+    if (window.scrollY === 0 && deltaY > 0 && deltaX < 30) {
+      e.preventDefault();
       
-      if (connection) {
-        setMetrics({
-          connectionType: connection.type || 'unknown',
-          effectiveType: connection.effectiveType || 'unknown',
-          downlink: connection.downlink || 0,
-          rtt: connection.rtt || 0
-        })
-
-        const updateConnection = () => {
-          setMetrics({
-            connectionType: connection.type || 'unknown',
-            effectiveType: connection.effectiveType || 'unknown',
-            downlink: connection.downlink || 0,
-            rtt: connection.rtt || 0
-          })
-        }
-
-        connection.addEventListener('change', updateConnection)
-        return () => connection.removeEventListener('change', updateConnection)
+      const distance = Math.min(deltaY * 0.5, 120);
+      setPullDistance(distance);
+      
+      // 添加触觉反馈
+      if (distance > 80 && 'vibrate' in navigator) {
+        navigator.vibrate(10);
       }
     }
-  }, [])
+  }, [enablePullToRefresh, onRefresh, isRefreshing]);
 
-  return metrics
-}
+  const handleTouchEnd = useCallback(async () => {
+    if (!enablePullToRefresh || !onRefresh || isRefreshing) return;
 
-// 自适应图片加载
-export function ResponsiveImage({ 
-  src, 
-  alt, 
-  className = "",
-  priority = false,
-  sizes = "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-}: {
-  src: string
-  alt: string
-  className?: string
-  priority?: boolean
-  sizes?: string
-}) {
-  const device = useDeviceDetection()
-  const [loaded, setLoaded] = useState(false)
-  const [error, setError] = useState(false)
+    if (pullDistance > 80) {
+      setIsRefreshing(true);
+      try {
+        await onRefresh();
+      } catch (error) {
+        console.error('Refresh failed:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    }
+    
+    setPullDistance(0);
+    touchStartY.current = 0;
+  }, [enablePullToRefresh, onRefresh, isRefreshing, pullDistance]);
 
-  // 根据设备类型优化图片质量
-  const getOptimizedSrc = (originalSrc: string) => {
-    if (device.isMobile && device.screenSize === 'sm') {
-      // 小屏幕移动设备：低质量，小尺寸
-      return `${originalSrc}?w=400&q=60&format=webp`
-    } else if (device.isMobile) {
-      // 大屏幕移动设备：中等质量
-      return `${originalSrc}?w=800&q=75&format=webp`
+  // 滑动手势处理
+  const handleSwipeGesture = useCallback((direction: 'left' | 'right' | 'up' | 'down') => {
+    if (!enableSwipeGestures) return;
+
+    // 自定义滑动逻辑
+    const event = new CustomEvent('swipeGesture', { 
+      detail: { direction } 
+    });
+    window.dispatchEvent(event);
+  }, [enableSwipeGestures]);
+
+  const handleSwipeStart = useCallback((e: React.TouchEvent) => {
+    if (!enableSwipeGestures) return;
+    
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, [enableSwipeGestures]);
+
+  const handleSwipeEnd = useCallback((e: React.TouchEvent) => {
+    if (!enableSwipeGestures) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX.current;
+    const deltaY = touchEndY - touchStartY.current;
+
+    const minSwipeDistance = 50;
+    const maxSwipeTime = 300;
+
+    if (Math.abs(deltaX) < minSwipeDistance && Math.abs(deltaY) < minSwipeDistance) {
+      return;
+    }
+
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      // 水平滑动
+      if (deltaX > 0) {
+        handleSwipeGesture('right');
+      } else {
+        handleSwipeGesture('left');
+      }
     } else {
-      // 桌面设备：高质量
-      return `${originalSrc}?w=1200&q=85&format=webp`
+      // 垂直滑动
+      if (deltaY > 0) {
+        handleSwipeGesture('down');
+      } else {
+        handleSwipeGesture('up');
+      }
     }
-  }
+  }, [enableSwipeGestures, handleSwipeGesture]);
 
-  return (
-    <div className={`relative overflow-hidden ${className}`}>
-      {!loaded && !error && (
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 animate-pulse flex items-center justify-center">
-          <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </div>
-      )}
-      
-      {error ? (
-        <div className="w-full h-48 bg-slate-100 flex items-center justify-center">
-          <div className="text-center">
-            <svg className="w-12 h-12 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <p className="text-sm text-slate-500">图片加载失败</p>
-          </div>
-        </div>
-      ) : (
-        <img
-          src={getOptimizedSrc(src)}
-          alt={alt}
-          className={`transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-0'} w-full h-auto`}
-          loading={priority ? 'eager' : 'lazy'}
-          decoding="async"
-          onLoad={() => setLoaded(true)}
-          onError={() => setError(true)}
-          sizes={sizes}
-        />
-      )}
-    </div>
-  )
-}
+  // 快速操作按钮
+  const FloatingActionButton = () => {
+    if (!isMobile || !showFAB) return null;
 
-// 移动端友好的卡片组件
-export function MobileCard({ 
-  children, 
-  className = "",
-  interactive = true 
-}: { 
-  children: React.ReactNode
-  className?: string 
-  interactive?: boolean
-}) {
-  const device = useDeviceDetection()
-
-  return (
-    <div 
-      className={`
-        bg-white rounded-lg shadow-md overflow-hidden
-        ${interactive ? 'hover:shadow-lg active:scale-[0.98]' : ''}
-        ${device.isMobile ? 'mx-2 mb-4' : 'mb-6'}
-        ${interactive && device.isMobile ? 'touch-manipulation' : ''}
-        transition-all duration-200
-        ${className}
-      `}
-      style={{
-        // 移动端优化的触摸目标尺寸
-        minHeight: device.isMobile ? '44px' : 'auto',
-        WebkitTapHighlightColor: 'transparent'
-      }}
-    >
-      {children}
-    </div>
-  )
-}
-
-// 移动端友好的按钮
-export function MobileButton({
-  children,
-  onClick,
-  variant = 'primary',
-  size = 'medium',
-  className = "",
-  disabled = false,
-  ...props
-}: {
-  children: React.ReactNode
-  onClick?: () => void
-  variant?: 'primary' | 'secondary' | 'outline'
-  size?: 'small' | 'medium' | 'large'
-  className?: string
-  disabled?: boolean
-} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const device = useDeviceDetection()
-
-  const baseClasses = `
-    inline-flex items-center justify-center font-medium rounded-lg
-    transition-all duration-200 touch-manipulation
-    disabled:opacity-50 disabled:cursor-not-allowed
-    focus:outline-none focus:ring-2 focus:ring-offset-2
-  `
-
-  const variantClasses = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 active:bg-blue-800',
-    secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200 focus:ring-slate-500 active:bg-slate-300',
-    outline: 'border border-slate-300 text-slate-700 hover:bg-slate-50 focus:ring-slate-500 active:bg-slate-100'
-  }
-
-  const sizeClasses = {
-    small: device.isMobile ? 'px-4 py-3 text-sm min-h-[44px]' : 'px-3 py-2 text-sm',
-    medium: device.isMobile ? 'px-6 py-3 text-base min-h-[48px]' : 'px-4 py-2 text-base',
-    large: device.isMobile ? 'px-8 py-4 text-lg min-h-[52px]' : 'px-6 py-3 text-lg'
-  }
-
-  return (
-    <button
-      className={`${baseClasses} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
-      onClick={onClick}
-      disabled={disabled}
-      style={{ WebkitTapHighlightColor: 'transparent' }}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-}
-
-// 移动端性能提示组件
-export function MobilePerformanceHints() {
-  const device = useDeviceDetection()
-  const performance = useMobilePerformance()
-  const [showHints, setShowHints] = useState(false)
-
-  useEffect(() => {
-    // 仅在慢网络条件下显示性能提示
-    if (performance && performance.effectiveType && ['slow-2g', '2g'].includes(performance.effectiveType)) {
-      setShowHints(true)
-    }
-  }, [performance])
-
-  if (!device.isMobile || !showHints) return null
-
-  return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 bg-amber-50 border border-amber-200 rounded-lg p-4 shadow-lg">
-      <div className="flex items-start space-x-3">
-        <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div className="flex-1">
-          <h4 className="text-sm font-medium text-amber-800">网络较慢</h4>
-          <p className="text-xs text-amber-700 mt-1">
-            我们已优化了页面以提供更好的体验。某些图片可能需要更长时间加载。
-          </p>
-        </div>
+    return (
+      <div className="fixed bottom-6 right-6 z-50">
         <button
-          onClick={() => setShowHints(false)}
-          className="text-amber-600 hover:text-amber-800 p-1"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-all duration-300 flex items-center justify-center"
+          aria-label="回到顶部"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
           </svg>
         </button>
       </div>
-    </div>
-  )
-}
+    );
+  };
 
-// 主优化容器组件
-export default function MobileOptimization({ children }: MobileOptimizationProps) {
-  const device = useDeviceDetection()
-  useTouchInteractions()
+  // 下拉刷新指示器
+  const PullToRefreshIndicator = () => {
+    if (!isMobile || (!pullDistance && !isRefreshing)) return null;
 
-  useEffect(() => {
-    // 移动端视口优化
-    if (device.isMobile) {
-      const viewport = document.querySelector('meta[name="viewport"]')
-      if (viewport) {
-        viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes, viewport-fit=cover')
-      }
+    const progress = Math.min(pullDistance / 80, 1);
+    const shouldTrigger = pullDistance > 80;
 
-      // 添加移动端样式类
-      document.body.classList.add('mobile-optimized')
-      
-      // 优化滚动性能
-      document.body.style.overscrollBehavior = 'none'
-      document.documentElement.style.WebkitOverflowScrolling = 'touch'
-    }
+    return (
+      <div 
+        className="fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 transition-transform duration-200"
+        style={{ 
+          transform: `translateY(${Math.max(pullDistance - 80, 0)}px)`,
+          opacity: Math.max(progress, 0.3)
+        }}
+      >
+        <div className="flex flex-col items-center justify-center py-4">
+          <div className={`transition-transform duration-200 ${isRefreshing ? 'animate-spin' : ''}`}>
+            {isRefreshing ? (
+              <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+              </svg>
+            ) : (
+              <svg 
+                className={`w-6 h-6 transition-colors duration-200 ${shouldTrigger ? 'text-green-600' : 'text-gray-400'}`} 
+                fill="currentColor" 
+                viewBox="0 0 24 24"
+                style={{ transform: `rotate(${progress * 180}deg)` }}
+              >
+                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+              </svg>
+            )}
+          </div>
+          <span className={`text-sm mt-2 transition-colors duration-200 ${
+            isRefreshing ? 'text-blue-600' : shouldTrigger ? 'text-green-600' : 'text-gray-500'
+          }`}>
+            {isRefreshing ? '正在刷新...' : shouldTrigger ? '释放以刷新' : '下拉刷新'}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
-    return () => {
-      document.body.classList.remove('mobile-optimized')
-    }
-  }, [device.isMobile])
+  // 触摸反馈
+  const TouchFeedback = () => {
+    const [touchPoints, setTouchPoints] = useState<Array<{
+      id: number;
+      x: number;
+      y: number;
+      timestamp: number;
+    }>>([]);
+
+    useEffect(() => {
+      if (!isMobile) return;
+
+      const handleTouchStart = (e: TouchEvent) => {
+        const touches = Array.from(e.touches).map((touch, index) => ({
+          id: Date.now() + index,
+          x: touch.clientX,
+          y: touch.clientY,
+          timestamp: Date.now()
+        }));
+        
+        setTouchPoints(prev => [...prev, ...touches]);
+
+        // 清理旧的触摸点
+        setTimeout(() => {
+          setTouchPoints(prev => prev.filter(point => 
+            Date.now() - point.timestamp < 300
+          ));
+        }, 300);
+      };
+
+      document.addEventListener('touchstart', handleTouchStart, { passive: true });
+
+      return () => {
+        document.removeEventListener('touchstart', handleTouchStart);
+      };
+    }, [isMobile]);
+
+    if (!isMobile) return null;
+
+    return (
+      <div className="fixed inset-0 pointer-events-none z-30">
+        {touchPoints.map(point => (
+          <div
+            key={point.id}
+            className="absolute w-10 h-10 bg-blue-400 rounded-full opacity-30 animate-ping"
+            style={{
+              left: point.x - 20,
+              top: point.y - 20,
+              animationDuration: '300ms'
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  // Safe Area 适配
+  const SafeAreaWrapper = ({ children }: { children: React.ReactNode }) => {
+    if (!isMobile) return <>{children}</>;
+
+    return (
+      <div 
+        className="min-h-screen"
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)'
+        }}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  if (!isMobile) {
+    return <>{children}</>;
+  }
 
   return (
-    <>
-      {children}
-      <MobilePerformanceHints />
-      
-      {/* 移动端CSS优化 */}
-      <style jsx global>{`
-        .mobile-optimized {
-          /* 改善触摸滚动 */
-          -webkit-overflow-scrolling: touch;
-          
-          /* 防止文本缩放 */
-          -webkit-text-size-adjust: 100%;
-          
-          /* 禁用用户选择（仅在需要时） */
-          -webkit-touch-callout: none;
-          -webkit-user-select: none;
-          -khtml-user-select: none;
-          -moz-user-select: none;
-          -ms-user-select: none;
-          user-select: none;
-        }
-        
-        .mobile-optimized input,
-        .mobile-optimized textarea,
-        .mobile-optimized [contenteditable] {
-          -webkit-user-select: text;
-          -moz-user-select: text;
-          -ms-user-select: text;
-          user-select: text;
-        }
-        
-        /* 移动端点击反馈优化 */
-        .touch-manipulation {
-          touch-action: manipulation;
-        }
-        
-        /* 改善移动端文本渲染 */
-        @media (max-width: 768px) {
-          body {
-            font-size: 16px; /* 防止iOS缩放 */
-            line-height: 1.5;
-          }
-          
-          /* 优化按钮和链接的触摸目标 */
-          button, 
-          a,
-          input[type="button"],
-          input[type="submit"] {
-            min-height: 44px;
-            min-width: 44px;
-          }
-          
-          /* 优化表单输入 */
-          input,
-          textarea,
-          select {
-            font-size: 16px; /* 防止iOS缩放 */
-          }
-        }
-        
-        /* 适配安全区域（iPhone X等设备） */
-        @supports (padding: max(0px)) {
-          .safe-area-padding {
-            padding-left: max(1rem, env(safe-area-inset-left));
-            padding-right: max(1rem, env(safe-area-inset-right));
-            padding-bottom: max(1rem, env(safe-area-inset-bottom));
-          }
-        }
-        
-        /* 减少动画以优化性能 */
-        @media (prefers-reduced-motion: reduce) {
-          *,
-          *::before,
-          *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-          }
-        }
-      `}</style>
-    </>
-  )
+    <SafeAreaWrapper>
+      <div
+        ref={containerRef}
+        className="relative"
+        onTouchStart={enablePullToRefresh ? handleTouchStart : enableSwipeGestures ? handleSwipeStart : undefined}
+        onTouchMove={enablePullToRefresh ? handleTouchMove : undefined}
+        onTouchEnd={enablePullToRefresh ? handleTouchEnd : enableSwipeGestures ? handleSwipeEnd : undefined}
+      >
+        <PullToRefreshIndicator />
+        {children}
+        <FloatingActionButton />
+        <TouchFeedback />
+      </div>
+    </SafeAreaWrapper>
+  );
 }
+
+// 移动端工具函数
+export const MobileUtils = {
+  // 检测移动设备
+  isMobile: () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  },
+
+  // 检测iOS设备
+  isIOS: () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent);
+  },
+
+  // 检测Android设备
+  isAndroid: () => {
+    return /Android/.test(navigator.userAgent);
+  },
+
+  // 获取设备像素比
+  getDevicePixelRatio: () => {
+    return window.devicePixelRatio || 1;
+  },
+
+  // 获取屏幕尺寸
+  getScreenSize: () => {
+    return {
+      width: window.screen.width,
+      height: window.screen.height,
+      availWidth: window.screen.availWidth,
+      availHeight: window.screen.availHeight
+    };
+  },
+
+  // 获取视口尺寸
+  getViewportSize: () => {
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  },
+
+  // 触觉反馈
+  vibrate: (duration: number | number[] = 10) => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(duration);
+    }
+  },
+
+  // 防止页面滚动
+  preventScroll: () => {
+    document.body.style.overflow = 'hidden';
+  },
+
+  // 恢复页面滚动
+  enableScroll: () => {
+    document.body.style.overflow = '';
+  },
+
+  // 获取触摸事件的位置
+  getTouchPosition: (e: TouchEvent) => {
+    const touch = e.touches[0] || e.changedTouches[0];
+    return {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  },
+
+  // 计算两点距离
+  getDistance: (point1: { x: number; y: number }, point2: { x: number; y: number }) => {
+    const dx = point2.x - point1.x;
+    const dy = point2.y - point1.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  },
+
+  // 设置视口元标签
+  setViewportMeta: () => {
+    let viewport = document.querySelector('meta[name="viewport"]');
+    if (!viewport) {
+      viewport = document.createElement('meta');
+      viewport.setAttribute('name', 'viewport');
+      document.head.appendChild(viewport);
+    }
+    viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+  }
+};

@@ -1,208 +1,138 @@
-'use client'
+'use client';
 
-import Image from 'next/image'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 
 interface SEOOptimizedImageProps {
-  src: string
-  alt?: string
-  title?: string
-  width?: number
-  height?: number
-  className?: string
-  priority?: boolean
-  // SEO相关属性
-  context?: {
-    websiteTitle?: string
-    authorName?: string
-    category?: string
-    tags?: string[]
-    description?: string
-  }
-}
-
-// 智能生成alt属性
-function generateSmartAlt(src: string, context?: SEOOptimizedImageProps['context'], customAlt?: string): string {
-  if (customAlt && customAlt.trim()) {
-    return customAlt
-  }
-
-  const { websiteTitle, authorName, category, tags, description } = context || {}
-  
-  // 基于图片URL推断内容类型
-  const isScreenshot = src.includes('screenshot') || src.includes('preview')
-  const isAvatar = src.includes('avatar') || src.includes('profile')
-  const isIcon = src.includes('icon') || src.includes('logo')
-  
-  if (isScreenshot && websiteTitle) {
-    const tagText = tags && tags.length > 0 ? ` - 使用${tags.slice(0, 2).join('、')}技术` : ''
-    const authorText = authorName ? ` by ${authorName}` : ''
-    return `${websiteTitle}项目截图${tagText}${authorText}`
-  }
-  
-  if (isAvatar && authorName) {
-    return `${authorName}的头像 - WebSpark.club开发者`
-  }
-  
-  if (isIcon && category) {
-    return `${category}分类图标 - WebSpark.club`
-  }
-  
-  if (description) {
-    return description.length > 100 ? description.substring(0, 100) + '...' : description
-  }
-  
-  // 默认fallback
-  return `WebSpark.club - Web开发者作品展示平台图片`
-}
-
-// 智能生成title属性  
-function generateSmartTitle(alt: string, context?: SEOOptimizedImageProps['context']): string {
-  const { websiteTitle, category, tags } = context || {}
-  
-  if (websiteTitle && tags && tags.length > 0) {
-    return `${websiteTitle} | ${tags.join('、')} | WebSpark.club开发者作品`
-  }
-  
-  if (category) {
-    return `${category}相关项目 | WebSpark.club`
-  }
-  
-  return alt
+  src: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  className?: string;
+  priority?: boolean;
+  quality?: number;
+  placeholder?: 'blur' | 'empty';
+  blurDataURL?: string;
+  sizes?: string;
+  fill?: boolean;
+  objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
+  loading?: 'lazy' | 'eager';
+  onLoad?: () => void;
+  onError?: () => void;
 }
 
 export default function SEOOptimizedImage({
   src,
-  alt: customAlt,
-  title: customTitle,
-  width = 600,
-  height = 400,
-  className = "",
+  alt,
+  width,
+  height,
+  className = '',
   priority = false,
-  context,
-  ...props
+  quality = 75,
+  placeholder = 'blur',
+  blurDataURL,
+  sizes,
+  fill = false,
+  objectFit = 'cover',
+  loading = 'lazy',
+  onLoad,
+  onError
 }: SEOOptimizedImageProps) {
-  const [imageError, setImageError] = useState(false)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const imgRef = useRef<HTMLDivElement>(null);
 
-  // 生成智能alt和title
-  const smartAlt = generateSmartAlt(src, context, customAlt)
-  const smartTitle = customTitle || generateSmartTitle(smartAlt, context)
+  // 默认的模糊占位符
+  const defaultBlurDataURL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyztHTlbZbL5pJWjYHxQB4aB8QQSgAAIbCaAAAB/9k=';
 
-  // 处理图片加载错误
-  const handleError = () => {
-    setImageError(true)
-  }
+  // 使用 Intersection Observer 检测图片是否进入视口
+  useEffect(() => {
+    if (!imgRef.current || priority) {
+      setIsInView(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      {
+        rootMargin: '50px', // 提前50px开始加载
+        threshold: 0.1
+      }
+    );
+
+    observer.observe(imgRef.current);
+
+    return () => observer.disconnect();
+  }, [priority]);
 
   const handleLoad = () => {
-    setIsLoaded(true)
-  }
+    setIsLoading(false);
+    onLoad?.();
+  };
 
-  // 如果图片加载失败，显示占位符
-  if (imageError) {
-    return (
-      <div 
-        className={`bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center ${className}`}
-        style={{ width, height }}
-        role="img"
-        aria-label={smartAlt}
-        title={smartTitle}
-      >
-        <div className="text-center p-4">
-          <svg className="w-16 h-16 text-slate-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <p className="text-sm text-slate-500">图片加载失败</p>
-        </div>
+  const handleError = () => {
+    setHasError(true);
+    setIsLoading(false);
+    onError?.();
+  };
+
+  // 错误占位符
+  const ErrorPlaceholder = () => (
+    <div className={`flex items-center justify-center bg-gray-200 ${className}`} style={{ width, height }}>
+      <div className="text-center text-gray-400">
+        <svg className="w-8 h-8 mx-auto mb-2" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+        </svg>
+        <p className="text-xs">图片加载失败</p>
       </div>
-    )
+    </div>
+  );
+
+  // 加载占位符
+  const LoadingPlaceholder = () => (
+    <div className={`animate-pulse bg-gray-200 ${className}`} style={{ width, height }}>
+      <div className="w-full h-full bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 animate-pulse" />
+    </div>
+  );
+
+  if (hasError) {
+    return <ErrorPlaceholder />;
   }
 
   return (
-    <div className="relative">
-      <Image
-        src={src}
-        alt={smartAlt}
-        title={smartTitle}
-        width={width}
-        height={height}
-        className={`transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'} ${className}`}
-        priority={priority}
-        onError={handleError}
-        onLoad={handleLoad}
-        // SEO优化属性
-        loading={priority ? 'eager' : 'lazy'}
-        decoding="async"
-        {...props}
-      />
-      
-      {/* 加载占位符 */}
-      {!isLoaded && !imageError && (
-        <div 
-          className="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 animate-pulse flex items-center justify-center"
-          aria-hidden="true"
-        >
-          <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        </div>
+    <div ref={imgRef} className={`relative overflow-hidden ${className}`}>
+      {isInView ? (
+        <>
+          {isLoading && <LoadingPlaceholder />}
+          <Image
+            src={src}
+            alt={alt}
+            width={width}
+            height={height}
+            fill={fill}
+            quality={quality}
+            priority={priority}
+            placeholder={placeholder}
+            blurDataURL={blurDataURL || defaultBlurDataURL}
+            sizes={sizes}
+            className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'} ${
+              fill ? 'object-cover' : ''
+            }`}
+            style={!fill ? { objectFit } : undefined}
+            onLoad={handleLoad}
+            onError={handleError}
+            loading={loading}
+          />
+        </>
+      ) : (
+        <LoadingPlaceholder />
       )}
     </div>
-  )
-}
-
-// 导出便捷的预设组件
-export function WebsiteScreenshot({ src, website, ...props }: { 
-  src: string
-  website: {
-    title: string
-    author: { name: string }
-    tags: Array<{ name: string }>
-    shortDescription: string
-    category?: { name: string }
-  }
-} & Omit<SEOOptimizedImageProps, 'context'>) {
-  return (
-    <SEOOptimizedImage
-      src={src}
-      context={{
-        websiteTitle: website.title,
-        authorName: website.author.name,
-        category: website.category?.name,
-        tags: website.tags.map(tag => tag.name),
-        description: website.shortDescription
-      }}
-      {...props}
-    />
-  )
-}
-
-export function UserAvatar({ src, user, ...props }: {
-  src: string
-  user: { name: string }
-} & Omit<SEOOptimizedImageProps, 'context'>) {
-  return (
-    <SEOOptimizedImage
-      src={src}
-      context={{
-        authorName: user.name
-      }}
-      {...props}
-    />
-  )
-}
-
-export function CategoryIcon({ src, category, ...props }: {
-  src: string
-  category: { name: string }
-} & Omit<SEOOptimizedImageProps, 'context'>) {
-  return (
-    <SEOOptimizedImage
-      src={src}
-      context={{
-        category: category.name
-      }}
-      {...props}
-    />
-  )
+  );
 }

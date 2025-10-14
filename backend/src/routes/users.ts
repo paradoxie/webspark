@@ -22,6 +22,7 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
       github: true,
       location: true,
       isHiring: true,
+      role: true, // 添加角色信息
       createdAt: true,
       _count: {
         select: {

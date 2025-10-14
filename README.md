@@ -1,123 +1,112 @@
 # WebSpark.club
 
-🌟 一个为Web开发者社群创建的作品展示、灵感碰撞和交流互动的俱乐部。
+🌟 一个为 Web 开发者社群创建的作品展示、灵感碰撞和交流互动的俱乐部。
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 
 ## 🎯 项目愿景
 
-为Web开发者社群创建一个充满活力的作品展示、灵感碰撞和交流互动的俱乐部，让每个开发者都能展示自己的创作，发现优秀的作品，并在社区中获得成长和认可。
-
-## 🏗️ 技术架构
-
-### 前端
-- **框架**: Next.js 14 (App Router)
-- **语言**: TypeScript
-- **样式**: Tailwind CSS
-- **认证**: NextAuth.js (GitHub OAuth)
-- **数据获取**: SWR + API Routes
-- **图表**: Chart.js + React Chart.js 2
-- **部署**: Cloudflare Pages
-
-### 后端
-- **框架**: Express.js
-- **语言**: TypeScript
-- **数据库**: MySQL + Prisma ORM
-- **认证**: JWT Token 验证
-- **安全**: 企业级安全防护体系
-- **部署**: 宝塔面板 + PM2
+为 Web 开发者创建一个充满活力的作品展示平台，让每个开发者都能展示自己的创作，发现优秀的作品，并在社区中获得成长和认可。
 
 ## ✨ 核心功能
 
-### 🔐 用户系统
-- GitHub OAuth 快速登录
-- 个人中心管理
-- 用户资料与头像
-- 作品提交与管理
-
-### 🎨 作品展示
-- 作品提交与审核
-- 多维度筛选搜索
-- 智能排序算法
-- 收藏与点赞系统
-
-### 💬 社交互动
-- 嵌套评论回复
-- 实时通知系统
-- 邮件通知服务
-- 用户行为分析
-
-### 🛡️ 安全与分析
-- 企业级安全防护
-- 安全审计日志
-- 数据分析统计
-- 实时监控系统
-
-### 🎭 用户体验
-- 暗色主题支持
-- 响应式设计
-- PWA 支持
-- 高性能优化
+- 🔐 **GitHub OAuth 认证** - 一键登录，无需注册
+- 🎨 **作品展示** - 提交、审核、展示完整流程
+- 💬 **社交互动** - 点赞、收藏、评论、回复
+- 🔍 **智能搜索** - 全文搜索、高级筛选、智能排序
+- 📊 **数据分析** - 用户行为分析、流量统计
+- 🌙 **暗色主题** - 完整的明暗主题切换
+- 📱 **PWA 支持** - 离线访问、移动端优化
 
 ## 🚀 快速开始
 
 ### 环境要求
+
 - Node.js 18+
 - MySQL 8.0+
 - npm 或 yarn
 
-### 安装与运行
+### 本地开发
 
 ```bash
 # 克隆项目
 git clone https://github.com/your-username/webspark.git
 cd webspark
 
-# 安装前端依赖
-cd frontend
+# 后端设置
+cd backend
 npm install
+cp .env.example .env  # 配置环境变量
+npm run db:migrate     # 数据库迁移
+npm run db:seed        # 初始数据
+npm run dev            # 启动后端 (http://localhost:3001)
 
-# 安装后端依赖
-cd ../backend
+# 前端设置 (新终端)
+cd ../frontend
 npm install
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，填入必要配置
-
-# 数据库迁移
-npx prisma migrate dev
-npx prisma db seed
-
-# 启动开发服务
-npm run dev
+cp .env.example .env.local  # 配置环境变量
+npm run dev                 # 启动前端 (http://localhost:3000)
 ```
 
-### 访问应用
-- 前端: http://localhost:3000
-- 后端API: http://localhost:3001
+### 环境变量配置
 
-## 📚 文档
+参考 [GitHub OAuth 配置指南](./GITHUB_OAUTH_SETUP.md) 设置 OAuth 认证。
 
-- [部署指南](./DEPLOYMENT.md) - 完整的生产环境部署教程
-- [GitHub OAuth 配置](./GITHUB_OAUTH_SETUP.md) - OAuth 认证设置指南
-- [后端API文档](./backend/API_DOCUMENTATION.md) - 完整的API接口文档
-- [项目进度报告](./项目进度报告.md) - 详细的项目评估报告
-- [开发指南](./CLAUDE.md) - 面向开发者的项目指导
+## 🏗️ 技术架构
 
-## 🏆 项目特色
+### 前端技术栈
+- **Next.js 14** - React 框架 (App Router)
+- **TypeScript** - 类型安全
+- **Tailwind CSS** - 样式框架
+- **NextAuth.js** - 认证系统
+- **SWR** - 数据获取
+- **Chart.js** - 数据可视化
 
-### 🌟 技术亮点
-- **全栈TypeScript**: 类型安全的前后端开发
-- **现代化架构**: Next.js 14 App Router + Express
-- **企业级安全**: 全方位安全防护和审计
-- **智能分析**: 数据驱动的用户行为分析
-- **高性能**: 优化的查询和缓存策略
+### 后端技术栈
+- **Express.js** - Node.js 框架
+- **Prisma ORM** - 数据库 ORM
+- **MySQL 8.0** - 关系型数据库
+- **JWT** - Token 认证
+- **Nodemailer** - 邮件服务
 
-### 💎 产品亮点
-- **智能排序**: 基于热度、时间和互动的推荐算法
-- **高级搜索**: 多维度筛选和全文检索
-- **社交互动**: 完整的评论、点赞、收藏体系
-- **实时统计**: 详细的数据分析和可视化
-- **用户体验**: 现代化UI和流畅交互
+## 📚 项目文档
+
+### 核心文档
+- [贡献指南](./CONTRIBUTING.md) - 如何为项目贡献代码
+- [行为准则](./CODE_OF_CONDUCT.md) - 社区行为规范
+- [更新日志](./CHANGELOG.md) - 版本变更记录
+- [许可证](./LICENSE) - MIT开源许可
+
+### 技术文档
+- [架构设计](./docs/ARCHITECTURE.md) - 系统架构详解
+- [API 参考](./docs/API_REFERENCE.md) - 完整的API文档
+- [部署指南](./docs/DEPLOYMENT.md) - 生产环境部署教程
+- [GitHub OAuth](./docs/GITHUB_OAUTH_SETUP.md) - OAuth配置指南
+
+### 项目分析
+- [产品分析报告](./docs/PRODUCT_ANALYSIS.md) - 产品就绪度分析（95%完成度）
+
+### 法律合规
+- [GDPR 合规](./legal/GDPR_COMPLIANCE.md) - 数据保护说明
+- [Cookie 政策](./legal/COOKIE_POLICY.md) - Cookie使用政策
+
+## 📁 项目结构
+
+```
+webspark/
+├── frontend/              # Next.js 前端应用
+│   ├── src/app/          # App Router 页面
+│   ├── src/components/   # React 组件
+│   └── src/lib/          # 工具库和配置
+├── backend/              # Express 后端服务
+│   ├── src/routes/       # API 路由
+│   ├── src/middleware/   # 中间件
+│   ├── src/services/     # 业务逻辑
+│   └── prisma/           # 数据库模型
+└── docs/                 # 项目文档
+```
 
 ## 🌐 在线访问
 
@@ -127,54 +116,28 @@ npm run dev
 ## 📈 项目状态
 
 - **开发状态**: ✅ 生产就绪
-- **功能完成度**: 98%
+- **功能完成度**: 96-98%
 - **代码质量**: ⭐⭐⭐⭐⭐
-- **部署状态**: ✅ 已上线
+- **安全等级**: 企业级
 
-## 🤝 贡献
+## 🤝 贡献指南
 
 欢迎提交 Issue 和 Pull Request！
 
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
+
 ## 📄 许可证
 
-MIT License
+MIT License - 详见 [LICENSE](./LICENSE) 文件
 
-## 👥 团队
+## 🙏 致谢
 
-如果你对这个项目感兴趣，欢迎加入我们的开发者社区！
+感谢所有为这个项目做出贡献的开发者！
 
 ---
 
-**WebSpark.club** - 让每个Web开发者的作品都能闪闪发光 ✨
-
-### 作品展示
-- 首页展示优质作品
-- 智能排序算法
-- 分类与标签筛选
-- 全文搜索功能
-
-### 互动系统
-- 点赞与收藏
-- 作品评论
-- 举报机制
-
-### 管理后台
-- 作品审核
-- 用户管理
-- 数据洞察
-
-## 开发计划
-
-1. **Phase 1**: 后端数据模型与API
-2. **Phase 2**: 前端核心页面
-3. **Phase 3**: 用户认证与权限
-4. **Phase 4**: 互动功能
-5. **Phase 5**: 部署与优化
-
-## 许可证
-
-MIT License
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！ 
+**WebSpark.club** - 让每个 Web 开发者的作品都能闪闪发光 ✨

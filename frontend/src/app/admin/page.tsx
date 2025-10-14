@@ -80,6 +80,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 批量操作相关状态
+  const [selectedWebsites, setSelectedWebsites] = useState<Set<number>>(new Set());
+  const [batchActionLoading, setBatchActionLoading] = useState(false);
+  const [selectAll, setSelectAll] = useState(false);
+
   // 检查用户是否为管理员
   useEffect(() => {
     if (status === 'loading') return;
@@ -268,6 +273,85 @@ export default function AdminPage() {
     }
   };
 
+  // 批量操作函数
+  const handleSelectWebsite = (websiteId: number, checked: boolean) => {
+    const newSelected = new Set(selectedWebsites);
+    if (checked) {
+      newSelected.add(websiteId);
+    } else {
+      newSelected.delete(websiteId);
+    }
+    setSelectedWebsites(newSelected);
+    setSelectAll(newSelected.size === websites.length);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(websites.map(w => w.id));
+      setSelectedWebsites(allIds);
+    } else {
+      setSelectedWebsites(new Set());
+    }
+    setSelectAll(checked);
+  };
+
+  const handleBatchAction = async (action: string, reason?: string) => {
+    if (selectedWebsites.size === 0) {
+      alert('请先选择要操作的作品');
+      return;
+    }
+
+    const confirmMessage = {
+      approve: '批量通过',
+      reject: '批量拒绝',
+      feature: '批量设为精选',
+      unfeature: '批量取消精选',
+      delete: '批量删除'
+    }[action] || action;
+
+    if (!confirm(`确定要${confirmMessage}选中的 ${selectedWebsites.size} 个作品吗？`)) {
+      return;
+    }
+
+    setBatchActionLoading(true);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/api/admin/websites/batch`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer test-admin-token`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action,
+          websiteIds: Array.from(selectedWebsites),
+          reason
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('批量操作失败');
+      }
+
+      const result = await response.json();
+      
+      alert(`批量操作完成！成功：${result.summary.successful}，失败：${result.summary.failed}`);
+      
+      // 清空选择
+      setSelectedWebsites(new Set());
+      setSelectAll(false);
+      
+      // 刷新数据
+      fetchData();
+    } catch (error) {
+      console.error('批量操作失败:', error);
+      alert('批量操作失败，请重试');
+    } finally {
+      setBatchActionLoading(false);
+    }
+  };
+
   if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -395,18 +479,50 @@ export default function AdminPage() {
 
         {activeTab === 'websites' && (
           <div className="bg-white shadow rounded-lg">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-medium text-gray-900">待审核作品</h2>
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-lg font-medium text-gray-900">
+                作品管理 ({websites.length})
+              </h2>
+              
+              {/* 批量操作按钮 */}
+              {selectedWebsites.size > 0 && (
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleBatchAction('approve')}
+                    disabled={batchActionLoading}
+                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    批量通过 ({selectedWebsites.size})
+                  </button>
+                  <button
+                    onClick={() => {
+                      const reason = prompt('请输入拒绝理由（可选）:');
+                      handleBatchAction('reject', reason || undefined);
+                    }}
+                    disabled={batchActionLoading}
+                    className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    批量拒绝 ({selectedWebsites.size})
+                  </button>
+                  <button
+                    onClick={() => handleBatchAction('feature')}
+                    disabled={batchActionLoading}
+                    className="px-3 py-1 bg-yellow-600 text-white text-sm rounded hover:bg-yellow-700 disabled:opacity-50"
+                  >
+                    设为精选 ({selectedWebsites.size})
+                  </button>
+                </div>
+              )}
             </div>
             <div className="p-6">
               {websites.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 text-6xl mb-4">📝</div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    暂无待审核作品
+                    暂无作品
                   </h3>
                   <p className="text-gray-500">
-                    所有作品都已处理完成
+                    还没有提交的作品
                   </p>
                 </div>
               ) : (
@@ -414,6 +530,14 @@ export default function AdminPage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <input
+                            type="checkbox"
+                            checked={selectAll}
+                            onChange={(e) => handleSelectAll(e.target.checked)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           作品信息
                         </th>
@@ -433,7 +557,15 @@ export default function AdminPage() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {websites.map((website) => (
-                        <tr key={website.id}>
+                        <tr key={website.id} className={selectedWebsites.has(website.id) ? 'bg-blue-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedWebsites.has(website.id)}
+                              onChange={(e) => handleSelectWebsite(website.id, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div>
                               <div className="text-sm font-medium text-gray-900">
