@@ -42,7 +42,7 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
   });
   
   if (!user) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'User not found',
       code: 'USER_NOT_FOUND'
     });
@@ -113,7 +113,7 @@ router.get('/me/bookmarks', authenticate, asyncHandler(async (req: Authenticated
     .map(b => b.website);
 
   if (websites.length === 0) {
-    return res.json({
+    res.json({
       data: [],
       meta: {
         pagination: {
@@ -124,6 +124,7 @@ router.get('/me/bookmarks', authenticate, asyncHandler(async (req: Authenticated
         }
       }
     });
+    return;
   }
 
   const websiteIds = websites.map(w => w.id);
@@ -218,7 +219,7 @@ router.get('/me/likes', authenticate, asyncHandler(async (req: AuthenticatedRequ
     .map(l => l.website);
 
   if (websites.length === 0) {
-    return res.json({
+    res.json({
       data: [],
       meta: {
         pagination: {
@@ -229,6 +230,7 @@ router.get('/me/likes', authenticate, asyncHandler(async (req: AuthenticatedRequ
         }
       }
     });
+    return;
   }
 
   const websiteIds = websites.map(w => w.id);
@@ -359,7 +361,7 @@ router.get('/me/websites', authenticate, asyncHandler(async (req: AuthenticatedR
 }));
 
 // 获取特定用户信息及其作品
-router.get('/:username', asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/:username', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { username } = req.params;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 12, 50);
@@ -394,7 +396,7 @@ router.get('/:username', asyncHandler(async (req: Request, res: Response): Promi
   });
 
   if (!user) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'User not found',
       code: 'USER_NOT_FOUND'
     });
@@ -512,7 +514,7 @@ router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
   const { error, value } = schema.validate(req.body);
   
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
@@ -547,7 +549,7 @@ router.post('/:userId/follow', authenticate, asyncHandler(async (req: Authentica
   const targetUserId = parseInt(userId);
 
   if (followerId === targetUserId) {
-    return res.status(400).json({
+    res.status(400).json({
       error: '不能关注自己',
       code: 'CANNOT_FOLLOW_SELF'
     });
@@ -558,7 +560,7 @@ router.post('/:userId/follow', authenticate, asyncHandler(async (req: Authentica
   });
 
   if (!targetUser) {
-    return res.status(404).json({
+    res.status(404).json({
       error: '用户不存在',
       code: 'USER_NOT_FOUND'
     });
@@ -574,7 +576,7 @@ router.post('/:userId/follow', authenticate, asyncHandler(async (req: Authentica
   });
 
   if (existingFollow) {
-    return res.status(400).json({
+    res.status(400).json({
       error: '已经关注该用户',
       code: 'ALREADY_FOLLOWING'
     });
@@ -613,7 +615,7 @@ router.delete('/:userId/follow', authenticate, asyncHandler(async (req: Authenti
   const targetUserId = parseInt(userId);
 
   if (followerId === targetUserId) {
-    return res.status(400).json({
+    res.status(400).json({
       error: '不能取消关注自己',
       code: 'CANNOT_UNFOLLOW_SELF'
     });
@@ -629,7 +631,7 @@ router.delete('/:userId/follow', authenticate, asyncHandler(async (req: Authenti
   });
 
   if (!existingFollow) {
-    return res.status(400).json({
+    res.status(400).json({
       error: '还未关注该用户',
       code: 'NOT_FOLLOWING'
     });
@@ -652,7 +654,7 @@ router.delete('/:userId/follow', authenticate, asyncHandler(async (req: Authenti
 }));
 
 // 获取用户关注列表
-router.get('/:userId/following', asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/:userId/following', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { userId } = req.params;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 50);
@@ -695,7 +697,7 @@ router.get('/:userId/following', asyncHandler(async (req: Request, res: Response
   });
 
   if (!user) {
-    return res.status(404).json({
+    res.status(404).json({
       error: '用户不存在',
       code: 'USER_NOT_FOUND'
     });
@@ -717,7 +719,7 @@ router.get('/:userId/following', asyncHandler(async (req: Request, res: Response
 }));
 
 // 获取用户粉丝列表
-router.get('/:userId/followers', asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/:userId/followers', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { userId } = req.params;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 50);
@@ -760,7 +762,7 @@ router.get('/:userId/followers', asyncHandler(async (req: Request, res: Response
   });
 
   if (!user) {
-    return res.status(404).json({
+    res.status(404).json({
       error: '用户不存在',
       code: 'USER_NOT_FOUND'
     });
@@ -788,12 +790,13 @@ router.get('/:userId/follow-status', authenticate, asyncHandler(async (req: Auth
   const targetUserId = parseInt(userId);
 
   if (currentUserId === targetUserId) {
-    return res.json({
+    res.json({
       data: {
         isFollowing: false,
         isSelf: true
       }
     });
+    return;
   }
 
   const followRelation = await prisma.user.findFirst({

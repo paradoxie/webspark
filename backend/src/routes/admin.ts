@@ -134,7 +134,7 @@ router.post('/websites/:id/toggle-featured', authenticate, requireAdmin, asyncHa
   });
 
   if (!currentWebsite) {
-    return res.status(404).json({ error: 'Website not found' });
+    res.status(404).json({ error: 'Website not found' }); return;
   }
 
   const website = await prisma.website.update({
@@ -153,18 +153,20 @@ router.post('/websites/batch', authenticate, requireAdmin, asyncHandler(async (r
   const { action, websiteIds, reason } = req.body;
   
   if (!action || !websiteIds || !Array.isArray(websiteIds)) {
-    return res.status(400).json({ 
+    res.status(400).json({
       error: 'Invalid request data',
       code: 'INVALID_REQUEST'
     });
+    return;
   }
 
   const validActions = ['approve', 'reject', 'feature', 'unfeature', 'delete'];
   if (!validActions.includes(action)) {
-    return res.status(400).json({ 
+    res.status(400).json({
       error: 'Invalid action',
       code: 'INVALID_ACTION'
     });
+    return;
   }
 
   const results = [];
@@ -263,10 +265,11 @@ router.post('/websites/batch-tags', authenticate, requireAdmin, asyncHandler(asy
   const { websiteIds, addTags, removeTags } = req.body;
   
   if (!websiteIds || !Array.isArray(websiteIds)) {
-    return res.status(400).json({ 
+    res.status(400).json({
       error: 'Invalid website IDs',
       code: 'INVALID_REQUEST'
     });
+    return;
   }
 
   const results = [];
@@ -394,7 +397,7 @@ router.post('/users/:id/toggle', authenticate, requireAdmin, asyncHandler(async 
   });
 
   if (!currentUser) {
-    return res.status(404).json({ error: 'User not found' });
+    res.status(404).json({ error: 'User not found' }); return;
   }
 
   const user = await prisma.user.update({
@@ -562,7 +565,7 @@ router.post('/categories', authenticate, requireAdmin, asyncHandler(async (req: 
   const { name, description, icon, color } = req.body;
 
   if (!name) {
-    return res.status(400).json({ error: 'Category name is required' });
+    res.status(400).json({ error: 'Category name is required' }); return;
   }
 
   // 检查名称是否已存在
@@ -571,7 +574,7 @@ router.post('/categories', authenticate, requireAdmin, asyncHandler(async (req: 
   });
 
   if (existingCategory) {
-    return res.status(409).json({ error: 'Category name already exists' });
+    res.status(409).json({ error: 'Category name already exists' }); return;
   }
 
   // 生成slug
@@ -636,9 +639,10 @@ router.delete('/categories/:id', authenticate, requireAdmin, asyncHandler(async 
   });
 
   if (websiteCount > 0) {
-    return res.status(400).json({
+    res.status(400).json({
       error: `Cannot delete category with ${websiteCount} associated websites`,
     });
+    return;
   }
 
   await prisma.category.delete({
@@ -660,7 +664,7 @@ router.post('/categories/:id/toggle', authenticate, requireAdmin, asyncHandler(a
   });
 
   if (!currentCategory) {
-    return res.status(404).json({ error: 'Category not found' });
+    res.status(404).json({ error: 'Category not found' }); return;
   }
 
   const category = await prisma.category.update({
@@ -747,11 +751,11 @@ router.put('/reports/:id/close', authenticate, requireAdmin, asyncHandler(async 
   });
 
   if (!report) {
-    return res.status(404).json({ error: 'Report not found' });
+    res.status(404).json({ error: 'Report not found' }); return;
   }
 
   if (report.status === 'CLOSED') {
-    return res.status(400).json({ error: 'Report already closed' });
+    res.status(400).json({ error: 'Report already closed' }); return;
   }
 
   const updatedReport = await prisma.report.update({
@@ -774,11 +778,11 @@ router.put('/reports/:id/dismiss', authenticate, requireAdmin, asyncHandler(asyn
   });
 
   if (!report) {
-    return res.status(404).json({ error: 'Report not found' });
+    res.status(404).json({ error: 'Report not found' }); return;
   }
 
   if (report.status === 'CLOSED') {
-    return res.status(400).json({ error: 'Report already closed' });
+    res.status(400).json({ error: 'Report already closed' }); return;
   }
 
   const updatedReport = await prisma.report.update({

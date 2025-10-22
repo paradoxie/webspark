@@ -21,7 +21,7 @@ router.get('/', async (req: Request, res: Response) => {
       environment: process.env.NODE_ENV || 'development'
     };
     
-    res.status(200).json(healthInfo);
+    res.status(200).json(healthInfo); return;
   } catch (error) {
     res.status(503).json({
       status: 'unhealthy',
@@ -201,7 +201,7 @@ router.get('/stats', async (req: Request, res: Response) => {
 });
 
 // 就绪检查（用于K8s等容器编排）
-router.get('/ready', async (req: Request, res: Response) => {
+router.get('/ready', async (req: Request, res: Response): Promise<void> => {
   try {
     // 检查必要的服务是否就绪
     await prisma.$queryRaw`SELECT 1`;
@@ -217,7 +217,7 @@ router.get('/ready', async (req: Request, res: Response) => {
     const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
     
     if (missingEnvVars.length > 0) {
-      return res.status(503).json({
+      res.status(503).json({
         ready: false,
         reason: 'Missing required environment variables',
         missing: missingEnvVars

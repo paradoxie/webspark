@@ -19,7 +19,7 @@ const updateCommentSchema = Joi.object({
 });
 
 // 获取网站的评论列表（支持多级嵌套）
-router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { websiteId } = req.params;
   const { page = 1, pageSize = 20 } = req.query;
   
@@ -36,10 +36,11 @@ router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request
   });
 
   if (!website) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
+    return;
   }
 
   // 获取评论（只获取顶级评论，回复将嵌套显示）
@@ -58,7 +59,7 @@ router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request
             avatar: true
           }
         },
-        ...(req.user && {
+        ...((req as AuthenticatedRequest).user && {
           likedBy: {
             where: { id: (req as AuthenticatedRequest).user!.id },
             select: { id: true }
@@ -74,7 +75,7 @@ router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request
                 avatar: true
               }
             },
-            ...(req.user && {
+            ...((req as AuthenticatedRequest).user && {
               likedBy: {
                 where: { id: (req as AuthenticatedRequest).user!.id },
                 select: { id: true }
@@ -91,7 +92,7 @@ router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request
                     avatar: true
                   }
                 },
-                ...(req.user && {
+                ...((req as AuthenticatedRequest).user && {
                   likedBy: {
                     where: { id: (req as AuthenticatedRequest).user!.id },
                     select: { id: true }
@@ -140,11 +141,12 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
   // 验证请求数据
   const { error, value } = createCommentSchema.validate(req.body);
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Validation failed',
       details: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
+    return;
   }
 
   const { content, websiteId, parentId } = value;
@@ -160,10 +162,11 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
   });
 
   if (!website) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
+    return;
   }
 
   // 如果是回复，验证父评论是否存在并确定层级
@@ -181,10 +184,11 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
     });
 
     if (!parentComment) {
-      return res.status(404).json({
+      res.status(404).json({
         error: 'Parent comment not found',
         code: 'PARENT_COMMENT_NOT_FOUND'
       });
+      return;
     }
 
     // 如果父评论本身就是回复，则将新回复挂在顶级评论下（限制层级深度）
@@ -245,11 +249,12 @@ router.put('/:commentId', authenticate, asyncHandler(async (req: AuthenticatedRe
   // 验证请求数据
   const { error, value } = updateCommentSchema.validate(req.body);
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Validation failed',
       details: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
+    return;
   }
 
   const { content } = value;
@@ -270,17 +275,19 @@ router.put('/:commentId', authenticate, asyncHandler(async (req: AuthenticatedRe
   });
 
   if (!comment) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Comment not found',
       code: 'COMMENT_NOT_FOUND'
     });
+    return;
   }
 
   if (comment.authorId !== userId) {
-    return res.status(403).json({
+    res.status(403).json({
       error: 'Permission denied',
       code: 'PERMISSION_DENIED'
     });
+    return;
   }
 
   // 更新评论
@@ -316,17 +323,19 @@ router.delete('/:commentId', authenticate, asyncHandler(async (req: Authenticate
   });
 
   if (!comment) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Comment not found',
       code: 'COMMENT_NOT_FOUND'
     });
+    return;
   }
 
   if (comment.authorId !== userId) {
-    return res.status(403).json({
+    res.status(403).json({
       error: 'Permission denied',
       code: 'PERMISSION_DENIED'
     });
+    return;
   }
 
   // 删除评论（这会级联删除所有回复）
@@ -345,10 +354,11 @@ router.put('/:commentId/like', authenticate, asyncHandler(async (req: Authentica
   const userId = req.user!.id;
 
   if (!commentId || isNaN(parseInt(commentId))) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid comment ID',
       code: 'INVALID_COMMENT_ID'
     });
+    return;
   }
 
   // 查找评论
@@ -363,10 +373,11 @@ router.put('/:commentId/like', authenticate, asyncHandler(async (req: Authentica
   });
 
   if (!comment) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Comment not found',
       code: 'COMMENT_NOT_FOUND'
     });
+    return;
   }
 
   try {
@@ -465,10 +476,11 @@ router.put('/:commentId/like', authenticate, asyncHandler(async (req: Authentica
     });
   } catch (error) {
     console.error('Comment like toggle error:', error);
-    return res.status(500).json({
+    res.status(500).json({
       error: 'Failed to toggle comment like',
       code: 'COMMENT_LIKE_TOGGLE_FAILED'
     });
+    return;
   }
 }));
 

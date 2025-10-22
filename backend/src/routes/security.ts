@@ -1,6 +1,8 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { SecurityAuditLogger } from '../utils/securityAudit';
 import { validateApiKey } from '../middleware/security';
+import { asyncHandler } from '../middleware/errorHandler';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -60,36 +62,29 @@ router.get('/events', validateApiKey, async (req, res) => {
 });
 
 // 手动记录安全事件（用于测试或手动报告）
-router.post('/events', validateApiKey, async (req, res) => {
-  try {
-    const { type, severity, details } = req.body;
-    
-    if (!type || !severity) {
-      return res.status(400).json({
-        success: false,
-        error: 'Type and severity are required'
-      });
-    }
-    
-    await SecurityAuditLogger.logFromRequest(
-      req,
-      type,
-      severity,
-      details || {}
-    );
-    
-    res.json({
-      success: true,
-      message: 'Security event logged successfully'
-    });
-  } catch (error) {
-    console.error('Error logging security event:', error);
-    res.status(500).json({
+router.post('/events', validateApiKey, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { type, severity, details } = req.body;
+
+  if (!type || !severity) {
+    res.status(400).json({
       success: false,
-      error: 'Failed to log security event'
+      error: 'Type and severity are required'
     });
+    return;
   }
-});
+
+  await SecurityAuditLogger.logFromRequest(
+    req as any,
+    type,
+    severity,
+    details || {}
+  );
+
+  res.json({
+    success: true,
+    message: 'Security event logged successfully'
+  });
+}));
 
 // 获取安全配置状态
 router.get('/config', validateApiKey, async (req, res) => {

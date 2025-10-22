@@ -48,12 +48,12 @@ router.get('/analysis', authMiddleware, requireAdmin, async (req: Request, res: 
 });
 
 // 记录自定义事件
-router.post('/events', authMiddleware, async (req: Request, res: Response) => {
+router.post('/events', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const { event, data } = req.body;
     
     if (!event) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: {
           code: 'VALIDATION_ERROR',

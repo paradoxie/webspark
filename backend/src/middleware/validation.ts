@@ -23,11 +23,12 @@ export function validate(schema: Joi.Schema) {
         body: req.body
       });
 
-      return res.status(422).json({
+      res.status(422).json({
         error: 'Validation failed',
         code: 'VALIDATION_ERROR',
         details: errors
       });
+      return;
     }
 
     // 清理HTML内容
@@ -217,10 +218,11 @@ export function preventSQLInjection(req: Request, res: Response, next: NextFunct
       params: req.params
     });
 
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid input detected',
       code: 'INVALID_INPUT'
     });
+    return;
   }
 
   next();
@@ -239,7 +241,7 @@ export function validateFileUpload(allowedTypes: string[], maxSize: number = 5 *
       if (!file) continue; // Skip if file is undefined
       // 检查文件类型
       if (!allowedTypes.includes(file.mimetype)) {
-        return res.status(400).json({
+        res.status(400).json({
           error: '不支持的文件类型',
           code: 'INVALID_FILE_TYPE',
           allowedTypes
@@ -248,7 +250,7 @@ export function validateFileUpload(allowedTypes: string[], maxSize: number = 5 *
 
       // 检查文件大小
       if (file.size > maxSize) {
-        return res.status(400).json({
+        res.status(400).json({
           error: '文件大小超过限制',
           code: 'FILE_TOO_LARGE',
           maxSize: `${maxSize / 1024 / 1024}MB`
@@ -258,7 +260,7 @@ export function validateFileUpload(allowedTypes: string[], maxSize: number = 5 *
       // 检查文件名
       const safeFilename = /^[\w\-. ]+$/;
       if (!safeFilename.test(file.originalname)) {
-        return res.status(400).json({
+        res.status(400).json({
           error: '文件名包含非法字符',
           code: 'INVALID_FILENAME'
         });

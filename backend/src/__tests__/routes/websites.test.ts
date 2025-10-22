@@ -22,14 +22,14 @@ jest.mock('../../middleware/auth', () => ({
       req.user = { id: parseInt(authHeader.split('-')[2]) };
       next();
     } else {
-      res.status(401).json({ error: 'Unauthorized' });
+      res.status(401).json({ error: 'Unauthorized' }); return;
     }
   }),
   requireAdmin: jest.fn((req, res, next) => {
     if (req.user?.role === 'ADMIN') {
       next();
     } else {
-      res.status(403).json({ error: 'Forbidden' });
+      res.status(403).json({ error: 'Forbidden' }); return;
     }
   })
 }));

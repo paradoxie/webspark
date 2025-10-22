@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/errorHandler';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -40,7 +41,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // 按分类获取网站
-router.get('/:slug/websites', asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/:slug/websites', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { slug } = req.params;
   const { page = 1, pageSize = 12 } = req.query;
   
@@ -51,7 +52,7 @@ router.get('/:slug/websites', asyncHandler(async (req: Request, res: Response): 
   });
 
   if (!category) {
-    return res.status(404).json({ error: 'Category not found' });
+    res.status(404).json({ error: 'Category not found' }); return;
   }
 
   const [websites, total] = await Promise.all([
@@ -198,9 +199,10 @@ router.get('/top/:count', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching top categories:', error);
-    return res.status(500).json({
+    res.status(500).json({
       error: 'Failed to fetch top categories'
     });
+    return;
   }
 });
 

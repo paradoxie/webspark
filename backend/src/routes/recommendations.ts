@@ -249,7 +249,7 @@ router.get('/details',
     const userId = req.user?.id;
 
     if (!websiteIds || typeof websiteIds !== 'string') {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Website IDs are required',
         code: 'MISSING_WEBSITE_IDS'
@@ -263,7 +263,7 @@ router.get('/details',
         .filter(id => !isNaN(id) && id > 0);
       
       if (ids.length === 0) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Valid website IDs are required',
           code: 'INVALID_WEBSITE_IDS'
@@ -272,7 +272,7 @@ router.get('/details',
 
       // 限制一次查询的数量
       if (ids.length > 20) {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: 'Too many website IDs. Maximum 20 allowed per request',
           code: 'TOO_MANY_IDS'
@@ -283,7 +283,7 @@ router.get('/details',
       const cacheKey = `website_details_${ids.sort().join('_')}_${userId || 'guest'}`;
       const cached = await cache.get(CACHE_KEYS.WEBSITE_DETAIL, cacheKey);
       if (cached) {
-        return res.json({
+        res.json({
           success: true,
           data: cached,
           meta: {
@@ -293,6 +293,7 @@ router.get('/details',
             timestamp: new Date().toISOString()
           }
         });
+        return;
       }
 
       const websites = await prisma.website.findMany({
@@ -410,7 +411,7 @@ router.post('/feedback',
 
     // 输入验证
     if (!websiteId || !recommendationType || rating === undefined) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Website ID, recommendation type, and rating are required',
         code: 'MISSING_FEEDBACK_DATA'
@@ -418,7 +419,7 @@ router.post('/feedback',
     }
 
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Rating must be an integer between 1 and 5',
         code: 'INVALID_RATING'
@@ -426,7 +427,7 @@ router.post('/feedback',
     }
 
     if (!['personalized', 'similar_users', 'trending', 'hybrid'].includes(recommendationType)) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Invalid recommendation type',
         code: 'INVALID_RECOMMENDATION_TYPE'
@@ -444,7 +445,7 @@ router.post('/feedback',
     });
 
     if (!websiteExists) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Website not found',
         code: 'WEBSITE_NOT_FOUND'

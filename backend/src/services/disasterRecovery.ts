@@ -947,7 +947,7 @@ export class DisasterRecoveryService {
         const response = await fetch(healthCheckUrl);
         if (response.ok) {
           const data = await response.json();
-          if (data.status === 'healthy') {
+          if ((data as any).status === 'healthy') {
             logger.info('System verification passed');
             return;
           }

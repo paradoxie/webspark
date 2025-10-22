@@ -90,12 +90,11 @@ export async function optimizedWebsiteQuery(
       },
       _count: {
         select: {
-          likedBy: true,
-          bookmarkedBy: true,
+          websiteLikes: true,
+          bookmarks: true,
           comments: {
             where: {
-              status: 'APPROVED',
-              deletedAt: null
+              status: 'APPROVED'
             }
           }
         }
@@ -165,8 +164,7 @@ export async function preloadRelatedData<T extends { id: number }[]>(
         by: ['websiteId'],
         where: {
           websiteId: { in: itemIds },
-          status: 'APPROVED',
-          deletedAt: null
+          status: 'APPROVED'
         },
         _count: true
       }).then(counts => {

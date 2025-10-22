@@ -17,7 +17,7 @@ router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
   });
 
   if (!user) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'User not found',
       code: 'USER_NOT_FOUND'
     });
@@ -40,7 +40,7 @@ router.put('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
   const { error, value } = schema.validate(req.body);
   
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Validation failed',
       details: error.details[0].message,
       code: 'VALIDATION_ERROR'
@@ -73,7 +73,7 @@ router.post('/test-email', authenticate, asyncHandler(async (req: AuthenticatedR
   });
 
   if (!user) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'User not found',
       code: 'USER_NOT_FOUND'
     });

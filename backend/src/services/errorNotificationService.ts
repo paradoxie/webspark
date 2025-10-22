@@ -234,7 +234,7 @@ class ErrorNotificationService {
     });
   }
 
-  async notifyError(message: string, details?: any): Promise<void> {
+  async notifyErrorMessage(message: string, details?: any): Promise<void> {
     await this.notifyError({
       type: 'ERROR',
       message,

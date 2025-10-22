@@ -616,7 +616,7 @@ export class DeploymentService {
         const response = await fetch(deployment.healthCheckUrl);
         if (response.ok) {
           const data = await response.json();
-          return data.status === 'healthy';
+          return (data as any).status === 'healthy';
         }
       } catch (error) {
         logger.warn(`Health check failed, attempt ${retries + 1}/${maxRetries}`);

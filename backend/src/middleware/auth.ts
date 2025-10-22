@@ -24,7 +24,7 @@ export const authenticate = async (
     const authHeader = req.header('Authorization');
     
     if (!authHeader) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         error: 'Access denied. No token provided.',
         code: 'NO_TOKEN'
       });
@@ -39,7 +39,7 @@ export const authenticate = async (
     }
 
     if (!token) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         error: 'Access denied. Invalid token format.',
         code: 'INVALID_TOKEN_FORMAT'
       });
@@ -88,7 +88,7 @@ export const authenticate = async (
         req.user = user;
         return next();
       } else {
-        return res.status(403).json({
+        res.status(403).json({
           error: 'Account is deactivated.',
           code: 'ACCOUNT_DEACTIVATED'
         });
@@ -145,7 +145,7 @@ export const authenticate = async (
             req.user = user;
             return next();
           } else {
-            return res.status(403).json({
+            res.status(403).json({
               error: 'Account is deactivated.',
               code: 'ACCOUNT_DEACTIVATED'
             });
@@ -183,7 +183,7 @@ export const authenticate = async (
         }
       }
 
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Invalid token.',
         code: 'INVALID_TOKEN'
       });
@@ -243,7 +243,7 @@ export const authenticate = async (
     }
 
     if (!user || !user.isActive) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         error: 'Invalid token or user not found.',
         code: 'INVALID_USER'
       });

@@ -51,7 +51,7 @@ router.get('/:slug', asyncHandler(async (req: Request, res: Response): Promise<v
   });
 
   if (!tag) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Tag not found',
       code: 'TAG_NOT_FOUND'
     });

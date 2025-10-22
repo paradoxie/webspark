@@ -311,13 +311,12 @@ export class AnalyticsService {
       // 获取完成该步骤的用户数
       const users = await prisma.activity.count({
         where: {
-          type: step.event,
+          type: step.event as any,
           createdAt: {
             gte: startDate,
             lte: endDate
           }
-        },
-        distinct: ['userId']
+        }
       });
 
       const conversionRate = i === 0 ? 100 : (users / previousStepUsers) * 100;
@@ -372,7 +371,7 @@ export class AnalyticsService {
       id: activity.id.toString(),
       type: activity.type,
       user: activity.user.name || activity.user.username,
-      target: activity.metadata?.target || 'Unknown',
+      target: (activity.metadata as any)?.target || 'Unknown',
       timestamp: activity.createdAt,
       details: activity.metadata
     }));
@@ -814,7 +813,7 @@ export class AnalyticsService {
       LIMIT ${limit}
     `;
     
-    return topUsers;
+    return topUsers as any[];
   }
 
   private static async getSystemIssues(

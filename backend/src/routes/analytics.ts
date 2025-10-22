@@ -453,7 +453,7 @@ router.get('/user-activity', authenticate, asyncHandler(async (req: Authenticate
 }));
 
 // 获取网站排行榜
-router.get('/website-rankings', asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/website-rankings', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { period = '30d', sortBy = 'engagement' } = req.query;
   
   // 验证输入参数
@@ -461,11 +461,11 @@ router.get('/website-rankings', asyncHandler(async (req: Request, res: Response)
   const validSortBy = ['likes', 'bookmarks', 'comments', 'clicks', 'engagement'];
   
   if (!validPeriods.includes(period as string)) {
-    return res.status(400).json({ error: 'Invalid period parameter' });
+    res.status(400).json({ error: 'Invalid period parameter' }); return;
   }
   
   if (!validSortBy.includes(sortBy as string)) {
-    return res.status(400).json({ error: 'Invalid sortBy parameter' });
+    res.status(400).json({ error: 'Invalid sortBy parameter' }); return;
   }
   
   let startDate: Date;

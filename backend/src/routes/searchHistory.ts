@@ -156,7 +156,7 @@ router.delete('/history', authenticate, asyncHandler(async (req: AuthenticatedRe
 }));
 
 // 获取热门搜索
-router.get('/trending', asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/trending', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const limit = Math.min(parseInt(req.query.limit as string) || 10, 20);
   const hours = parseInt(req.query.hours as string) || 24; // 默认24小时内
 

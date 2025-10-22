@@ -30,7 +30,7 @@ const upload = multer({
 // 上传头像
 router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!req.file) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'No file uploaded',
       code: 'NO_FILE'
     });
@@ -84,7 +84,7 @@ router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(async
 // 上传作品截图
 router.post('/screenshot', authenticate, upload.single('screenshot'), asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!req.file) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'No file uploaded',
       code: 'NO_FILE'
     });
@@ -115,7 +115,7 @@ router.post('/screenshots', authenticate, upload.array('screenshots', 5), asyncH
   const files = req.files as Express.Multer.File[];
 
   if (!files || files.length === 0) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'No files uploaded',
       code: 'NO_FILES'
     });
@@ -152,7 +152,7 @@ router.delete('/:type/:filename', authenticate, asyncHandler(async (req: Authent
   const { type, filename } = req.params;
 
   if (!['avatars', 'screenshots'].includes(type)) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid file type',
       code: 'INVALID_TYPE'
     });
@@ -176,11 +176,11 @@ router.delete('/:type/:filename', authenticate, asyncHandler(async (req: Authent
 }));
 
 // 获取文件信息
-router.get('/info/:type/:filename', asyncHandler(async (req: Request, res: Response): Promise<void> => {
+router.get('/info/:type/:filename', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { type, filename } = req.params;
 
   if (!['avatars', 'screenshots'].includes(type)) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid file type',
       code: 'INVALID_TYPE'
     });

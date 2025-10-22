@@ -700,13 +700,19 @@ export class MonitoringService {
       errors: 0,
       totalTime: 0
     };
-    
-    const requestsPerMinute = stats.requests;
-    const averageResponseTime = stats.requests > 0 
-      ? stats.totalTime / stats.requests 
+
+    const apiStats = stats as {
+      requests: number;
+      errors: number;
+      totalTime: number;
+    };
+
+    const requestsPerMinute = apiStats.requests;
+    const averageResponseTime = apiStats.requests > 0
+      ? apiStats.totalTime / apiStats.requests
       : 0;
-    const errorRate = stats.requests > 0 
-      ? (stats.errors / stats.requests) * 100 
+    const errorRate = apiStats.requests > 0
+      ? (apiStats.errors / apiStats.requests) * 100
       : 0;
     
     return {

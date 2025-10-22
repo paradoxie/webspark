@@ -30,7 +30,7 @@ router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Res
   const { error, value } = advancedSearchSchema.validate(req.query);
   
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid search parameters',
       details: error.details[0].message,
       code: 'VALIDATION_ERROR'
@@ -64,10 +64,10 @@ router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Res
   // 文本搜索
   if (query.trim()) {
     where.OR = [
-      { title: { contains: query, mode: 'insensitive' } },
-      { shortDescription: { contains: query, mode: 'insensitive' } },
-      { description: { contains: query, mode: 'insensitive' } },
-      { tags: { some: { name: { contains: query, mode: 'insensitive' } } } }
+      { title: { contains: query } },
+      { shortDescription: { contains: query } },
+      { description: { contains: query } },
+      { tags: { some: { name: { contains: query } } } }
     ];
   }
 
@@ -89,8 +89,8 @@ router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Res
   if (author.trim()) {
     where.author = {
       OR: [
-        { username: { contains: author, mode: 'insensitive' } },
-        { name: { contains: author, mode: 'insensitive' } }
+        { username: { contains: author } },
+        { name: { contains: author } }
       ]
     };
   }
@@ -217,7 +217,7 @@ router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Res
 
       const total = await prisma.website.count({ where });
 
-      return res.json({
+      res.json({
         data: websites,
         meta: {
           pagination: {
@@ -229,6 +229,7 @@ router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Res
           searchParams: value
         }
       });
+      return;
     default:
       orderBy = { createdAt: 'desc' };
   }
@@ -290,7 +291,8 @@ router.get('/suggestions', asyncHandler(async (req: Request, res: Response): Pro
   const { query, type = 'all' } = req.query;
 
   if (!query || (query as string).length < 2) {
-    return res.json({ data: [] });
+    res.json({ data: [] });
+    return;
   }
 
   const searchTerm = query as string;
@@ -303,7 +305,7 @@ router.get('/suggestions', asyncHandler(async (req: Request, res: Response): Pro
         where: {
           status: 'APPROVED',
           deletedAt: null,
-          title: { contains: searchTerm, mode: 'insensitive' }
+          title: { contains: searchTerm }
         },
         select: { title: true },
         take: 5
@@ -320,7 +322,7 @@ router.get('/suggestions', asyncHandler(async (req: Request, res: Response): Pro
       // 标签建议
       const tags = await prisma.tag.findMany({
         where: {
-          name: { contains: searchTerm, mode: 'insensitive' }
+          name: { contains: searchTerm }
         },
         select: { name: true },
         take: 5
@@ -338,8 +340,8 @@ router.get('/suggestions', asyncHandler(async (req: Request, res: Response): Pro
       const authors = await prisma.user.findMany({
         where: {
           OR: [
-            { username: { contains: searchTerm, mode: 'insensitive' } },
-            { name: { contains: searchTerm, mode: 'insensitive' } }
+            { username: { contains: searchTerm } },
+            { name: { contains: searchTerm } }
           ],
           isActive: true
         },
@@ -460,7 +462,7 @@ router.post('/saved-searches', authenticate, asyncHandler(async (req: Authentica
   const { error, value } = schema.validate(req.body);
 
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
@@ -476,7 +478,7 @@ router.post('/saved-searches', authenticate, asyncHandler(async (req: Authentica
   });
 
   if (existingSearch) {
-    return res.status(400).json({
+    res.status(400).json({
       error: '已存在同名的保存搜索',
       code: 'DUPLICATE_NAME'
     });
@@ -491,7 +493,7 @@ router.post('/saved-searches', authenticate, asyncHandler(async (req: Authentica
   });
 
   if (savedSearchCount >= 10) {
-    return res.status(400).json({
+    res.status(400).json({
       error: '最多只能保存10个搜索条件',
       code: 'LIMIT_EXCEEDED'
     });
@@ -545,7 +547,7 @@ router.put('/saved-searches/:id', authenticate, asyncHandler(async (req: Authent
   const { error, value } = schema.validate(req.body);
 
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
@@ -561,7 +563,7 @@ router.put('/saved-searches/:id', authenticate, asyncHandler(async (req: Authent
   });
 
   if (!existingSearch) {
-    return res.status(404).json({
+    res.status(404).json({
       error: '保存的搜索不存在',
       code: 'NOT_FOUND'
     });
@@ -579,7 +581,7 @@ router.put('/saved-searches/:id', authenticate, asyncHandler(async (req: Authent
     });
 
     if (duplicateSearch) {
-      return res.status(400).json({
+      res.status(400).json({
         error: '已存在同名的保存搜索',
         code: 'DUPLICATE_NAME'
       });
@@ -612,7 +614,7 @@ router.delete('/saved-searches/:id', authenticate, asyncHandler(async (req: Auth
   });
 
   if (!existingSearch) {
-    return res.status(404).json({
+    res.status(404).json({
       error: '保存的搜索不存在',
       code: 'NOT_FOUND'
     });
@@ -642,7 +644,7 @@ router.post('/search-history', authenticate, asyncHandler(async (req: Authentica
   const { error, value } = schema.validate(req.body);
 
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
@@ -660,10 +662,11 @@ router.post('/search-history', authenticate, asyncHandler(async (req: Authentica
   });
 
   if (recentSearch) {
-    return res.json({
+    res.json({
       data: recentSearch,
       message: '搜索历史已存在'
     });
+    return;
   }
 
   // 限制搜索历史数量，删除老的记录
@@ -759,7 +762,7 @@ router.delete('/search-history/:id', authenticate, asyncHandler(async (req: Auth
   });
 
   if (!existingHistory) {
-    return res.status(404).json({
+    res.status(404).json({
       error: '搜索历史不存在',
       code: 'NOT_FOUND'
     });

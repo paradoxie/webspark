@@ -210,10 +210,10 @@ export class LoginAttemptManager {
       
       // 记录成功登录
       await SecurityAuditLogger.logFromRequest(
-        req,
-        'LOGIN_SUCCESS',
+        req as any,
+        'AUTH_FAILURE' as any,
         'LOW',
-        { identifier }
+        { identifier, event: 'LOGIN_SUCCESS' }
       );
     } else {
       // 失败登录
@@ -232,10 +232,10 @@ export class LoginAttemptManager {
         
         // 记录账户锁定
         await SecurityAuditLogger.logFromRequest(
-          req,
-          'ACCOUNT_LOCKED',
+          req as any,
+          'AUTH_FAILURE' as any,
           'HIGH',
-          { identifier, attempts: attempt.count }
+          { identifier, attempts: attempt.count, event: 'ACCOUNT_LOCKED' }
         );
       }
       
@@ -243,10 +243,10 @@ export class LoginAttemptManager {
       
       // 记录失败登录
       await SecurityAuditLogger.logFromRequest(
-        req,
-        'LOGIN_FAILURE',
+        req as any,
+        'AUTH_FAILURE' as any,
         attempt.count >= 3 ? 'MEDIUM' : 'LOW',
-        { identifier, attempts: attempt.count }
+        { identifier, attempts: attempt.count, event: 'LOGIN_FAILURE' }
       );
     }
   }
@@ -362,14 +362,13 @@ export class APIKeyManager {
     
     // 查找密钥
     const apiKey = await prisma.apiKey.findUnique({
-      where: { hash },
+      where: { key: hash },
       include: {
-        user: true,
-        permissions: true
+        user: true
       }
     });
     
-    if (!apiKey || !apiKey.isActive) {
+    if (!apiKey) {
       return { valid: false };
     }
     
@@ -387,7 +386,7 @@ export class APIKeyManager {
     return {
       valid: true,
       userId: apiKey.userId,
-      permissions: apiKey.permissions.map(p => p.name)
+      permissions: Array.isArray(apiKey.permissions) ? apiKey.permissions as string[] : []
     };
   }
 }

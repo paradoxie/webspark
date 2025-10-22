@@ -126,19 +126,19 @@ export class SearchService {
       
       where.OR = [
         // 标题完全匹配（最高权重）
-        { title: { equals: query, mode: 'insensitive' } },
+        { title: { equals: query } },
         // 标题包含所有词（高权重）
         ...searchTerms.map(term => ({
-          title: { contains: term, mode: 'insensitive' as const }
+          title: { contains: term }
         })),
         // 简短描述匹配（中权重）
-        { shortDescription: { contains: query, mode: 'insensitive' } },
+        { shortDescription: { contains: query } },
         // 详细描述匹配（低权重）
-        { description: { contains: query, mode: 'insensitive' } },
+        { description: { contains: query } },
         // 标签匹配
-        { tags: { some: { name: { contains: query, mode: 'insensitive' } } } },
+        { tags: { some: { name: { contains: query } } } },
         // 作者匹配
-        { author: { name: { contains: query, mode: 'insensitive' } } }
+        { author: { name: { contains: query } } }
       ];
     }
 
@@ -208,9 +208,9 @@ export class SearchService {
     const where: Prisma.UserWhereInput = {
       isActive: true,
       OR: [
-        { name: { contains: query, mode: 'insensitive' } },
-        { username: { contains: query, mode: 'insensitive' } },
-        { bio: { contains: query, mode: 'insensitive' } }
+        { name: { contains: query } },
+        { username: { contains: query } },
+        { bio: { contains: query } }
       ]
     };
 
@@ -260,8 +260,8 @@ export class SearchService {
 
     const where: Prisma.TagWhereInput = {
       OR: [
-        { name: { contains: query, mode: 'insensitive' } },
-        { slug: { contains: query, mode: 'insensitive' } }
+        { name: { contains: query } },
+        { slug: { contains: query } }
       ]
     };
 
@@ -305,8 +305,8 @@ export class SearchService {
     const where: Prisma.CategoryWhereInput = {
       isActive: true,
       OR: [
-        { name: { contains: query, mode: 'insensitive' } },
-        { description: { contains: query, mode: 'insensitive' } }
+        { name: { contains: query } },
+        { description: { contains: query } }
       ]
     };
 
@@ -435,9 +435,9 @@ export class SearchService {
 
     if (query) {
       baseWhere.OR = [
-        { title: { contains: query, mode: 'insensitive' } },
-        { shortDescription: { contains: query, mode: 'insensitive' } },
-        { description: { contains: query, mode: 'insensitive' } }
+        { title: { contains: query } },
+        { shortDescription: { contains: query } },
+        { description: { contains: query } }
       ];
     }
 
@@ -622,8 +622,8 @@ export class SearchService {
     if (filters.author) {
       where.author = {
         OR: [
-          { username: { contains: filters.author, mode: 'insensitive' } },
-          { name: { contains: filters.author, mode: 'insensitive' } }
+          { username: { contains: filters.author } },
+          { name: { contains: filters.author } }
         ]
       };
     }
@@ -715,7 +715,7 @@ export class SearchService {
       LIMIT ${take} OFFSET ${skip}
     `;
     
-    return results;
+    return results as any[];
   }
 
   private static buildWhereClause(where: any): string {

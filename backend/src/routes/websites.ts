@@ -140,8 +140,8 @@ router.get('/', optionalAuth, asyncHandler(async (req: Request, res: Response) =
         },
         _count: {
           select: {
-            likedBy: true,
-            bookmarkedBy: true
+            websiteLikes: true,
+            bookmarks: true
           }
         }
       },
@@ -359,7 +359,7 @@ router.get('/:identifier', optionalAuth, asyncHandler(async (req: AuthenticatedR
   });
 
   if (!website) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
@@ -406,7 +406,7 @@ router.post('/', writeLimiter, authenticate, asyncHandler(async (req: Authentica
   const { error, value } = submitSchema.validate(req.body);
 
   if (error) {
-    return res.status(400).json({
+    res.status(400).json({
       error: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
@@ -420,7 +420,7 @@ router.post('/', writeLimiter, authenticate, asyncHandler(async (req: Authentica
   });
 
   if (!category) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid category',
       code: 'INVALID_CATEGORY'
     });
@@ -435,7 +435,7 @@ router.post('/', writeLimiter, authenticate, asyncHandler(async (req: Authentica
   });
 
   if (existingWebsite) {
-    return res.status(409).json({
+    res.status(409).json({
       error: 'This URL has already been submitted',
       code: 'URL_ALREADY_EXISTS'
     });
@@ -516,7 +516,7 @@ router.put('/:id/like', authenticate, asyncHandler(async (req: AuthenticatedRequ
   const userId = req.user!.id;
 
   if (isNaN(websiteId)) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid website ID',
       code: 'INVALID_WEBSITE_ID'
     });
@@ -536,7 +536,7 @@ router.put('/:id/like', authenticate, asyncHandler(async (req: AuthenticatedRequ
   });
 
   if (!website) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
@@ -612,7 +612,7 @@ router.put('/:id/bookmark', authenticate, asyncHandler(async (req: Authenticated
   const userId = req.user!.id;
 
   if (isNaN(websiteId)) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid website ID',
       code: 'INVALID_WEBSITE_ID'
     });
@@ -630,7 +630,7 @@ router.put('/:id/bookmark', authenticate, asyncHandler(async (req: Authenticated
   });
 
   if (!website) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
@@ -717,12 +717,12 @@ router.get('/search', optionalAuth, asyncHandler(async (req: AuthenticatedReques
   if (q) {
     const searchTerm = q as string;
     const searchConditions = [
-      { title: { contains: searchTerm, mode: 'insensitive' } },
-      { shortDescription: { contains: searchTerm, mode: 'insensitive' } },
-      { description: { contains: searchTerm, mode: 'insensitive' } },
-      { tags: { some: { name: { contains: searchTerm, mode: 'insensitive' } } } },
-      { author: { name: { contains: searchTerm, mode: 'insensitive' } } },
-      { author: { username: { contains: searchTerm, mode: 'insensitive' } } }
+      { title: { contains: searchTerm } },
+      { shortDescription: { contains: searchTerm } },
+      { description: { contains: searchTerm } },
+      { tags: { some: { name: { contains: searchTerm } } } },
+      { author: { name: { contains: searchTerm } } },
+      { author: { username: { contains: searchTerm } } }
     ];
 
     // 如果有标签过滤，将其合并到搜索条件中
@@ -744,8 +744,8 @@ router.get('/search', optionalAuth, asyncHandler(async (req: AuthenticatedReques
     const authorTerm = author as string;
     where.author = {
       OR: [
-        { username: { contains: authorTerm, mode: 'insensitive' } },
-        { name: { contains: authorTerm, mode: 'insensitive' } }
+        { username: { contains: authorTerm } },
+        { name: { contains: authorTerm } }
       ]
     };
   }
@@ -897,8 +897,8 @@ router.get('/featured', optionalAuth, asyncHandler(async (req: Request, res: Res
       },
       _count: {
         select: {
-          likedBy: true,
-          bookmarkedBy: true
+          websiteLikes: true,
+          bookmarks: true
         }
       }
     },

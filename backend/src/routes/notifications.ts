@@ -97,7 +97,7 @@ router.put('/:notificationId/read', authenticate, asyncHandler(async (req: Authe
   });
 
   if (!notification) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Notification not found',
       code: 'NOTIFICATION_NOT_FOUND'
     });
@@ -146,7 +146,7 @@ router.delete('/:notificationId', authenticate, asyncHandler(async (req: Authent
   });
 
   if (!notification) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Notification not found',
       code: 'NOTIFICATION_NOT_FOUND'
     });

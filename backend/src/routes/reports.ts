@@ -17,7 +17,7 @@ router.post('/', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, re
   const { error, value } = createReportSchema.validate(req.body);
   
   if (error) {
-    return res.status(400).json({ 
+    res.status(400).json({ 
       error: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
@@ -34,7 +34,7 @@ router.post('/', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, re
   });
 
   if (!website) {
-    return res.status(404).json({ 
+    res.status(404).json({ 
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
