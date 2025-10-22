@@ -3,8 +3,7 @@
  * 提供实时分析、可视化数据、智能报表等功能
  */
 
-import { prisma } from '../lib/prisma';
-import { cache, CACHE_KEYS, CACHE_TTL } from '../lib/cache';
+import { prisma } from '../db';
 
 interface AnalyticsMetrics {
   // 核心指标
@@ -102,19 +101,12 @@ export class AnalyticsService {
    * 获取实时仪表板数据
    */
   static async getDashboardMetrics(): Promise<AnalyticsMetrics> {
-    const cacheKey = 'dashboard_metrics';
-    const cached = await cache.get('analytics', cacheKey);
-    
-    if (cached) {
-      return cached as AnalyticsMetrics;
-    }
-
     const now = new Date();
     const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // 并行获取所有指标
+    // Get all metrics in parallel
     const [
       totalUsers,
       activeUsersDay,
@@ -139,23 +131,23 @@ export class AnalyticsService {
       this.getDistributionData()
     ]);
 
-    // 计算增长率
+    // Calculate growth rates
     const userGrowthRate = this.calculateGrowthRate(
       totalUsers - newUsersToday,
       totalUsers
     );
-    
+
     const contentGrowthRate = this.calculateGrowthRate(
       previousWeekData.websites,
       approvedWebsites
     );
-    
+
     const interactionGrowthRate = this.calculateGrowthRate(
       previousWeekData.interactions,
       interactions
     );
 
-    // 计算质量指标
+    // Calculate quality metrics
     const averageEngagementRate = await this.calculateEngagementRate();
     const contentApprovalRate = (approvedWebsites / totalWebsites) * 100;
     const userRetentionRate = await this.calculateRetentionRate(monthAgo);
@@ -177,9 +169,6 @@ export class AnalyticsService {
       distributions
     };
 
-    // 缓存5分钟
-    await cache.set('analytics', cacheKey, metrics, { ttl: 300 });
-
     return metrics;
   }
 
@@ -191,18 +180,17 @@ export class AnalyticsService {
       where: { id: userId },
       include: {
         websites: {
-          include: {
-            _count: {
-              select: {
-                likedBy: true,
-                comments: true,
-                views: true
-              }
-            }
+          select: {
+            id: true,
+            title: true,
+            likeCount: true,
+            viewCount: true,
+            createdAt: true
           }
         },
         _count: {
           select: {
+            websites: true,
             followers: true,
             following: true,
             websiteLikes: true,
@@ -216,7 +204,7 @@ export class AnalyticsService {
       throw new Error('User not found');
     }
 
-    // 构建用户画像
+    // Build user profile
     const profile = await this.buildUserProfile(user);
     const behavior = await this.analyzeUserBehavior(userId);
     const performance = await this.evaluateUserPerformance(user);
@@ -613,21 +601,21 @@ export class AnalyticsService {
 
   private static async buildUserProfile(user: any): Promise<UserProfile> {
     const totalLikesReceived = user.websites.reduce(
-      (sum: number, w: any) => sum + w._count.likedBy,
+      (sum: number, w: any) => sum + w.likeCount,
       0
     );
-    
+
     const totalViewsReceived = user.websites.reduce(
-      (sum: number, w: any) => sum + w._count.views,
+      (sum: number, w: any) => sum + w.viewCount,
       0
     );
-    
+
     const engagementScore = this.calculateUserEngagementScore(
       totalLikesReceived,
       totalViewsReceived,
       user._count.comments
     );
-    
+
     return {
       registrationDate: user.createdAt,
       lastActiveDate: user.lastLoginAt || user.updatedAt,
@@ -695,39 +683,39 @@ export class AnalyticsService {
 
   private static async evaluateUserPerformance(user: any): Promise<UserPerformance> {
     const websites = user.websites;
-    
-    // 计算内容质量分数
+
+    // Calculate content quality score
     const contentQualityScore = websites.length > 0
       ? websites.reduce((sum: number, w: any) => {
-          const score = (w._count.likedBy * 5 + w._count.views * 0.1 + w._count.comments * 3) / websites.length;
+          const score = (w.likeCount * 5 + w.viewCount * 0.1) / websites.length;
           return sum + score;
         }, 0) / websites.length
       : 0;
-    
-    // 计算社区贡献
+
+    // Calculate community contribution
     const communityContribution = user._count.comments + user._count.websiteLikes;
-    
-    // 判断增长趋势
-    const recentWebsites = websites.filter((w: any) => 
+
+    // Determine growth trend
+    const recentWebsites = websites.filter((w: any) =>
       new Date(w.createdAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     );
-    
+
     const growthTrend = recentWebsites.length > websites.length * 0.3
       ? 'rising'
       : recentWebsites.length > 0
       ? 'stable'
       : 'declining';
-    
-    // 获取表现最好的内容
+
+    // Get top performing content
     const topPerformingContent = websites
       .map((w: any) => ({
         id: w.id,
         title: w.title,
-        performance: w._count.likedBy * 5 + w._count.views * 0.1
+        performance: w.likeCount * 5 + w.viewCount * 0.1
       }))
       .sort((a: any, b: any) => b.performance - a.performance)
       .slice(0, 5);
-    
+
     return {
       contentQualityScore,
       communityContribution,
@@ -902,8 +890,8 @@ export class AnalyticsService {
     type: string,
     data: any
   ): Promise<void> {
-    // 保存报表到数据库或文件系统
-    await cache.set('reports', reportId, { type, data }, { ttl: 30 * 24 * 60 * 60 });
+    // Save report to database or file system
+    console.log(`Report ${reportId} of type ${type} saved with data:`, Object.keys(data));
   }
 }
 

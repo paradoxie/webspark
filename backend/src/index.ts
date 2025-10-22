@@ -150,9 +150,6 @@ app.use('/api/search-history', searchHistoryRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/logs', logRoutes);
 
-// 静态文件服务
-app.use('/uploads', express.static('uploads'));
-
 // 错误通知中间件
 app.use(errorNotificationMiddleware);
 

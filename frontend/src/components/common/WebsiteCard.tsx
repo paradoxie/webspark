@@ -136,6 +136,31 @@ export default function WebsiteCard({
     }
   };
 
+  // 简单的SEO权重判断
+  const getRelAttribute = (website: Website): string => {
+    // 高质量内容：dofollow
+    if (website.likeCount >= 50 || website.featured) {
+      return 'noopener';
+    }
+    // 一般内容：ugc
+    if (website.likeCount >= 10) {
+      return 'noopener ugc';
+    }
+    // 新内容：nofollow
+    return 'noopener nofollow ugc';
+  };
+
+  // 获取SEO徽章（用于tooltip）
+  const getSEOBadge = (website: Website): string => {
+    if (website.likeCount >= 50 || website.featured) {
+      return ' (传递SEO权重)';
+    }
+    if (website.likeCount >= 10) {
+      return ' (部分传递权重)';
+    }
+    return '';
+  };
+
   return (
     <Link
       href={`/sites/${website.slug}`}
@@ -162,6 +187,18 @@ export default function WebsiteCard({
               variant="status"
               className="bg-yellow-100 text-yellow-800"
               clickable={false}
+            />
+          )}
+          
+          {/* SEO价值标签 */}
+          {(website.likeCount >= 50 || website.featured) && (
+            <Tag
+              name="SEO+"
+              icon="🚀"
+              variant="status"
+              className="bg-green-100 text-green-800"
+              clickable={false}
+              title="此作品传递SEO权重"
             />
           )}
           
@@ -267,10 +304,18 @@ export default function WebsiteCard({
               <a
                 href={website.url}
                 target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                rel={getRelAttribute(website)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // 简单的点击追踪
+                  fetch(`/api/websites/${website.id}/track-click`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ linkType: 'main' })
+                  }).catch(() => {});
+                }}
                 className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-500 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 transition-colors"
-                title="访问网站"
+                title={`访问网站${getSEOBadge(website)}`}
               >
                 <Icon name="externalLink" />
               </a>
@@ -280,8 +325,16 @@ export default function WebsiteCard({
                 <a
                   href={website.sourceUrl}
                   target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
+                  rel={getRelAttribute(website)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // 简单的点击追踪
+                    fetch(`/api/websites/${website.id}/track-click`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ linkType: 'source' })
+                    }).catch(() => {});
+                  }}
                   className="p-2 rounded-lg text-slate-400 hover:text-gray-600 hover:bg-gray-50 dark:text-slate-500 dark:hover:text-gray-400 dark:hover:bg-gray-900/20 transition-colors"
                   title="查看源码"
                 >

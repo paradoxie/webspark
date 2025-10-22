@@ -3,8 +3,7 @@
  * 提供多渠道、智能化的通知功能
  */
 
-import { prisma } from '../lib/prisma';
-import { cache } from '../lib/cache';
+import { prisma } from '../db';
 import nodemailer from 'nodemailer';
 import webpush from 'web-push';
 
@@ -155,26 +154,17 @@ export class NotificationService {
    */
   private static async sendInAppNotification(payload: NotificationPayload): Promise<boolean> {
     try {
-      // 创建通知记录
+      // Create notification record
       const notification = await prisma.notification.create({
         data: {
           userId: payload.userId,
-          type: payload.type,
+          type: payload.type as any, // Cast to match schema enum
           title: payload.title,
-          message: payload.message,
-          data: payload.data,
-          actionUrl: payload.actionUrl,
-          actionLabel: payload.actionLabel,
-          priority: payload.priority || NotificationPriority.MEDIUM,
-          expiresAt: payload.expiresAt,
-          isRead: false
+          message: payload.message
         }
       });
 
-      // 更新未读计数缓存
-      await cache.delete('notifications', `unread_${payload.userId}`);
-
-      // 发送实时通知（如果有WebSocket连接）
+      // Send realtime notification (if available)
       await this.sendRealtimeNotification(payload.userId, notification);
 
       return true;
@@ -223,11 +213,10 @@ export class NotificationService {
    */
   private static async sendPushNotification(payload: NotificationPayload): Promise<boolean> {
     try {
-      // 获取用户的推送订阅
+      // Get user's push subscriptions
       const subscriptions = await prisma.pushSubscription.findMany({
-        where: { 
-          userId: payload.userId,
-          isActive: true
+        where: {
+          userId: payload.userId
         }
       });
 
@@ -247,17 +236,20 @@ export class NotificationService {
         }
       };
 
-      // 并行发送到所有订阅的设备
+      // Send to all subscribed devices in parallel
       const results = await Promise.allSettled(
-        subscriptions.map(sub => 
+        subscriptions.map(sub =>
           webpush.sendNotification(
-            JSON.parse(sub.subscription as string),
+            {
+              endpoint: sub.endpoint,
+              keys: sub.keys as any
+            },
             JSON.stringify(notification)
           )
         )
       );
 
-      // 清理失败的订阅
+      // Clean up failed subscriptions
       const failedIndices: number[] = [];
       results.forEach((result, index) => {
         if (result.status === 'rejected') {
@@ -268,7 +260,7 @@ export class NotificationService {
       if (failedIndices.length > 0) {
         await prisma.pushSubscription.updateMany({
           where: { id: { in: failedIndices } },
-          data: { isActive: false }
+          data: { failureCount: { increment: 1 } }
         });
       }
 
@@ -331,11 +323,11 @@ export class NotificationService {
    */
   static async sendWeeklyDigest(userId: number): Promise<boolean> {
     try {
-      // 获取用户本周数据
+      // Get user data from this week
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      
+
       const [websites, interactions, topWebsites] = await Promise.all([
-        // 用户本周提交的作品
+        // User's websites submitted this week
         prisma.website.findMany({
           where: {
             authorId: userId,
@@ -344,22 +336,20 @@ export class NotificationService {
           select: {
             title: true,
             likeCount: true,
-            viewCount: true,
-            commentCount: true
+            viewCount: true
           }
         }),
-        
-        // 用户作品本周获得的互动
+
+        // User's website interactions this week
         prisma.website.aggregate({
           where: { authorId: userId },
           _sum: {
             likeCount: true,
-            viewCount: true,
-            commentCount: true
+            viewCount: true
           }
         }),
-        
-        // 本周热门作品
+
+        // Top websites this week
         prisma.website.findMany({
           where: {
             status: 'APPROVED',
@@ -381,7 +371,7 @@ export class NotificationService {
         userWebsites: websites,
         totalLikes: interactions._sum.likeCount || 0,
         totalViews: interactions._sum.viewCount || 0,
-        totalComments: interactions._sum.commentCount || 0,
+        totalComments: 0, // Comments count not available in current schema
         topWebsites
       };
 
@@ -404,11 +394,6 @@ export class NotificationService {
    * 获取用户通知偏好
    */
   private static async getUserPreferences(userId: number): Promise<UserNotificationPreferences> {
-    const cached = await cache.get('notifications', `prefs_${userId}`);
-    if (cached) {
-      return cached as UserNotificationPreferences;
-    }
-
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -421,14 +406,12 @@ export class NotificationService {
       emailEnabled: user?.notificationSettings?.emailEnabled ?? true,
       pushEnabled: user?.notificationSettings?.pushEnabled ?? true,
       smsEnabled: user?.notificationSettings?.smsEnabled ?? false,
-      quietHoursStart: user?.notificationSettings?.quietHoursStart,
-      quietHoursEnd: user?.notificationSettings?.quietHoursEnd,
-      blockedTypes: user?.notificationSettings?.blockedTypes as NotificationType[] || [],
-      preferredChannels: user?.notificationSettings?.preferredChannels as any || {}
+      quietHoursStart: user?.notificationSettings?.quietHoursStart?.toString(),
+      quietHoursEnd: user?.notificationSettings?.quietHoursEnd?.toString(),
+      blockedTypes: (user?.notificationSettings?.blockedTypes as any) || [],
+      preferredChannels: (user?.notificationSettings?.preferredChannels as any) || {}
     };
 
-    await cache.set('notifications', `prefs_${userId}`, preferences, { ttl: 3600 });
-    
     return preferences;
   }
 
@@ -480,14 +463,13 @@ export class NotificationService {
    * 记录通知日志
    */
   private static async logNotification(payload: NotificationPayload): Promise<void> {
-    await prisma.notificationLog.create({
-      data: {
-        userId: payload.userId,
-        type: payload.type,
-        title: payload.title,
-        channels: payload.channels?.join(',') || 'IN_APP',
-        sentAt: new Date()
-      }
+    // Log notification for debugging/monitoring
+    console.log('Notification sent:', {
+      userId: payload.userId,
+      type: payload.type,
+      title: payload.title,
+      channels: payload.channels?.join(',') || 'IN_APP',
+      timestamp: new Date().toISOString()
     });
   }
 

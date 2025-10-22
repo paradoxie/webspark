@@ -4,7 +4,7 @@ import { SecurityValidator } from '../utils/security';
 import { SecurityAuditLogger } from '../utils/securityAudit';
 
 // CSRF Token验证
-export function validateCsrfToken(req: Request, res: Response, next: NextFunction) {
+export function validateCsrfToken(req: Request, res: Response, next: NextFunction): void {
   // 对于安全敏感操作，验证CSRF Token
   const sensitiveRoutes = [
     '/api/websites',
@@ -33,10 +33,11 @@ export function validateCsrfToken(req: Request, res: Response, next: NextFunctio
         }
       ).catch(console.error);
 
-      return res.status(403).json({
+      res.status(403).json({
         error: 'CSRF token validation failed',
         code: 'CSRF_ERROR'
       });
+      return;
     }
   }
   
@@ -44,7 +45,7 @@ export function validateCsrfToken(req: Request, res: Response, next: NextFunctio
 }
 
 // 输入验证中间件
-export function validateInput(req: Request, res: Response, next: NextFunction) {
+export function validateInput(req: Request, res: Response, next: NextFunction): void {
   const errors: string[] = [];
   
   // 验证请求体
@@ -141,18 +142,19 @@ export function validateInput(req: Request, res: Response, next: NextFunction) {
   }
   
   if (errors.length > 0) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Input validation failed',
       details: errors,
       code: 'INPUT_VALIDATION_ERROR'
     });
+    return;
   }
   
   next();
 }
 
 // URL验证中间件
-export function validateUrls(req: Request, res: Response, next: NextFunction) {
+export function validateUrls(req: Request, res: Response, next: NextFunction): void {
   const urlFields = ['url', 'sourceUrl', 'website', 'homepage'];
   const errors: string[] = [];
   
@@ -173,18 +175,19 @@ export function validateUrls(req: Request, res: Response, next: NextFunction) {
   }
   
   if (errors.length > 0) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'URL validation failed',
       details: errors,
       code: 'URL_VALIDATION_ERROR'
     });
+    return;
   }
   
   next();
 }
 
 // 用户名和邮箱验证中间件
-export function validateUserData(req: Request, res: Response, next: NextFunction) {
+export function validateUserData(req: Request, res: Response, next: NextFunction): void {
   const errors: string[] = [];
   
   if (req.body.username) {
@@ -208,11 +211,12 @@ export function validateUserData(req: Request, res: Response, next: NextFunction
   }
   
   if (errors.length > 0) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'User data validation failed',
       details: errors,
       code: 'USER_VALIDATION_ERROR'
     });
+    return;
   }
   
   next();
@@ -220,7 +224,7 @@ export function validateUserData(req: Request, res: Response, next: NextFunction
 
 // 文件上传安全验证
 export function validateFileUpload(allowedTypes: string[], maxSize: number = 5 * 1024 * 1024) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.file && !req.files) {
       return next();
     }
@@ -274,11 +278,12 @@ export function validateFileUpload(allowedTypes: string[], maxSize: number = 5 *
     });
     
     if (errors.length > 0) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'File validation failed',
         details: errors,
         code: 'FILE_VALIDATION_ERROR'
       });
+      return;
     }
     
     next();
@@ -327,21 +332,23 @@ export function securityHeaders() {
 
 // IP过滤中间件
 export function ipFilter(allowedIPs: string[] = [], blockedIPs: string[] = []) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress;
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '';
     
-    if (blockedIPs.includes(clientIP)) {
-      return res.status(403).json({
+    if (clientIP && blockedIPs.includes(clientIP)) {
+      res.status(403).json({
         error: 'Access denied',
         code: 'IP_BLOCKED'
       });
+      return;
     }
     
-    if (allowedIPs.length > 0 && !allowedIPs.includes(clientIP)) {
-      return res.status(403).json({
+    if (allowedIPs.length > 0 && clientIP && !allowedIPs.includes(clientIP)) {
+      res.status(403).json({
         error: 'Access denied',
         code: 'IP_NOT_ALLOWED'
       });
+      return;
     }
     
     next();
@@ -349,7 +356,7 @@ export function ipFilter(allowedIPs: string[] = [], blockedIPs: string[] = []) {
 }
 
 // API密钥验证中间件
-export function validateApiKey(req: Request, res: Response, next: NextFunction) {
+export function validateApiKey(req: Request, res: Response, next: NextFunction): void {
   const apiKey = req.headers['x-api-key'] as string;
   const validApiKeys = process.env.VALID_API_KEYS?.split(',') || [];
   
@@ -366,10 +373,11 @@ export function validateApiKey(req: Request, res: Response, next: NextFunction) 
         }
       ).catch(console.error);
 
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Invalid API key',
         code: 'INVALID_API_KEY'
       });
+      return;
     }
   }
   

@@ -2,20 +2,9 @@ import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { asyncHandler } from '../middleware/asyncHandler';
+import { ActivityType } from '@prisma/client';
 
 const router = Router();
-
-// 活动类型枚举
-enum ActivityType {
-  WEBSITE_CREATED = 'WEBSITE_CREATED',
-  WEBSITE_LIKED = 'WEBSITE_LIKED',
-  WEBSITE_BOOKMARKED = 'WEBSITE_BOOKMARKED',
-  COMMENT_POSTED = 'COMMENT_POSTED',
-  COMMENT_LIKED = 'COMMENT_LIKED',
-  USER_FOLLOWED = 'USER_FOLLOWED',
-  WEBSITE_VIEWED = 'WEBSITE_VIEWED',
-  PROFILE_UPDATED = 'PROFILE_UPDATED'
-}
 
 // 记录用户活动
 export async function recordActivity(
@@ -24,13 +13,11 @@ export async function recordActivity(
   metadata: Record<string, any> = {}
 ) {
   try {
-    await prisma.userActivity.create({
+    await prisma.activity.create({
       data: {
         userId,
         type,
-        metadata,
-        ipAddress: metadata.ipAddress || null,
-        userAgent: metadata.userAgent || null
+        metadata
       }
     });
   } catch (error) {
@@ -39,7 +26,7 @@ export async function recordActivity(
 }
 
 // 获取当前用户的活动历史
-router.get('/my-activity', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/my-activity', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
@@ -52,7 +39,7 @@ router.get('/my-activity', authenticate, asyncHandler(async (req: AuthenticatedR
   }
 
   const [activities, total] = await Promise.all([
-    prisma.userActivity.findMany({
+    prisma.activity.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip,
@@ -68,7 +55,7 @@ router.get('/my-activity', authenticate, asyncHandler(async (req: AuthenticatedR
         }
       }
     }),
-    prisma.userActivity.count({ where })
+    prisma.activity.count({ where })
   ]);
 
   // 丰富活动数据
@@ -109,7 +96,6 @@ router.get('/my-activity', authenticate, asyncHandler(async (req: AuthenticatedR
           break;
 
         case ActivityType.COMMENT_POSTED:
-        case ActivityType.COMMENT_LIKED:
           if (metadata.commentId) {
             const comment = await prisma.comment.findUnique({
               where: { id: metadata.commentId },
@@ -163,7 +149,7 @@ router.get('/my-activity', authenticate, asyncHandler(async (req: AuthenticatedR
 }));
 
 // 获取活动统计
-router.get('/my-stats', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/my-stats', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const period = req.query.period as string || '30d';
 
@@ -186,7 +172,7 @@ router.get('/my-stats', authenticate, asyncHandler(async (req: AuthenticatedRequ
   }
 
   // 获取活动统计
-  const activityStats = await prisma.userActivity.groupBy({
+  const activityStats = await prisma.activity.groupBy({
     by: ['type'],
     where: {
       userId,
@@ -207,8 +193,7 @@ router.get('/my-stats', authenticate, asyncHandler(async (req: AuthenticatedRequ
         authorId: userId,
         createdAt: {
           gte: startDate
-        },
-        deletedAt: null
+        }
       },
       _count: true,
       _sum: {
@@ -239,8 +224,7 @@ router.get('/my-stats', authenticate, asyncHandler(async (req: AuthenticatedRequ
           authorId: userId,
           createdAt: {
             gte: startDate
-          },
-          deletedAt: null
+          }
         }
       })
     ])
@@ -251,7 +235,7 @@ router.get('/my-stats', authenticate, asyncHandler(async (req: AuthenticatedRequ
     SELECT 
       DATE(createdAt) as date,
       COUNT(*) as activityCount
-    FROM UserActivity
+    FROM Activity
     WHERE userId = ${userId}
       AND createdAt >= ${startDate}
     GROUP BY DATE(createdAt)
@@ -288,7 +272,7 @@ router.get('/my-stats', authenticate, asyncHandler(async (req: AuthenticatedRequ
 }));
 
 // 获取特定用户的公开活动
-router.get('/user/:userId', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/user/:userId', asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const targetUserId = parseInt(req.params.userId);
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 100);
@@ -309,7 +293,7 @@ router.get('/user/:userId', asyncHandler(async (req: AuthenticatedRequest, res: 
   };
 
   const [activities, total] = await Promise.all([
-    prisma.userActivity.findMany({
+    prisma.activity.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip,
@@ -329,7 +313,7 @@ router.get('/user/:userId', asyncHandler(async (req: AuthenticatedRequest, res: 
         }
       }
     }),
-    prisma.userActivity.count({ where })
+    prisma.activity.count({ where })
   ]);
 
   res.json({
@@ -346,7 +330,7 @@ router.get('/user/:userId', asyncHandler(async (req: AuthenticatedRequest, res: 
 }));
 
 // 清除活动历史（隐私功能）
-router.delete('/clear', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/clear', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const { type, before } = req.body;
 
@@ -362,7 +346,7 @@ router.delete('/clear', authenticate, asyncHandler(async (req: AuthenticatedRequ
     };
   }
 
-  const result = await prisma.userActivity.deleteMany({ where });
+  const result = await prisma.activity.deleteMany({ where });
 
   res.json({
     message: `清除了 ${result.count} 条活动记录`

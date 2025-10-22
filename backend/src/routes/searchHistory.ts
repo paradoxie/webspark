@@ -1,24 +1,24 @@
-import { Router, Response } from 'express';
-import { prisma } from '../lib/prisma';
+import { Router, Response, Request } from 'express';
+import { prisma } from '../db';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
-import { asyncHandler } from '../middleware/asyncHandler';
+import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
 
 // 获取用户搜索历史
-router.get('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const limit = Math.min(parseInt(req.query.limit as string) || 10, 50);
 
   const searches = await prisma.searchHistory.findMany({
     where: { userId },
-    orderBy: { searchedAt: 'desc' },
+    orderBy: { createdAt: 'desc' },
     take: limit,
     select: {
       id: true,
       query: true,
-      searchedAt: true,
-      resultCount: true
+      createdAt: true,
+      results: true
     }
   });
 
@@ -28,15 +28,16 @@ router.get('/history', authenticate, asyncHandler(async (req: AuthenticatedReque
 }));
 
 // 保存搜索历史
-router.post('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const { query, resultCount = 0 } = req.body;
 
   if (!query || query.trim().length < 2) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Search query is required and must be at least 2 characters',
       code: 'INVALID_QUERY'
     });
+    return;
   }
 
   // 检查是否已存在相同的搜索（最近24小时内）
@@ -44,7 +45,7 @@ router.post('/history', authenticate, asyncHandler(async (req: AuthenticatedRequ
     where: {
       userId,
       query: query.trim(),
-      searchedAt: {
+      createdAt: {
         gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // 24小时内
       }
     }
@@ -55,15 +56,15 @@ router.post('/history', authenticate, asyncHandler(async (req: AuthenticatedRequ
     const updated = await prisma.searchHistory.update({
       where: { id: existingSearch.id },
       data: {
-        searchedAt: new Date(),
-        resultCount
+        results: resultCount
       }
     });
 
-    return res.json({
+    res.json({
       data: updated,
       message: 'Search history updated'
     });
+    return;
   }
 
   // 创建新的搜索历史
@@ -71,7 +72,7 @@ router.post('/history', authenticate, asyncHandler(async (req: AuthenticatedRequ
     data: {
       userId,
       query: query.trim(),
-      resultCount
+      results: resultCount
     }
   });
 
@@ -84,7 +85,7 @@ router.post('/history', authenticate, asyncHandler(async (req: AuthenticatedRequ
     // 删除最旧的记录
     const oldestRecords = await prisma.searchHistory.findMany({
       where: { userId },
-      orderBy: { searchedAt: 'asc' },
+      orderBy: { createdAt: 'asc' },
       take: count - 100,
       select: { id: true }
     });
@@ -105,15 +106,16 @@ router.post('/history', authenticate, asyncHandler(async (req: AuthenticatedRequ
 }));
 
 // 删除单条搜索历史
-router.delete('/history/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/history/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const historyId = parseInt(req.params.id);
 
   if (isNaN(historyId)) {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Invalid history ID',
       code: 'INVALID_ID'
     });
+    return;
   }
 
   const history = await prisma.searchHistory.findFirst({
@@ -124,10 +126,11 @@ router.delete('/history/:id', authenticate, asyncHandler(async (req: Authenticat
   });
 
   if (!history) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Search history not found',
       code: 'NOT_FOUND'
     });
+    return;
   }
 
   await prisma.searchHistory.delete({
@@ -140,7 +143,7 @@ router.delete('/history/:id', authenticate, asyncHandler(async (req: Authenticat
 }));
 
 // 清空所有搜索历史
-router.delete('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const result = await prisma.searchHistory.deleteMany({
@@ -153,7 +156,7 @@ router.delete('/history', authenticate, asyncHandler(async (req: AuthenticatedRe
 }));
 
 // 获取热门搜索
-router.get('/trending', asyncHandler(async (req, res: Response) => {
+router.get('/trending', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const limit = Math.min(parseInt(req.query.limit as string) || 10, 20);
   const hours = parseInt(req.query.hours as string) || 24; // 默认24小时内
 
@@ -163,7 +166,7 @@ router.get('/trending', asyncHandler(async (req, res: Response) => {
   const trending = await prisma.searchHistory.groupBy({
     by: ['query'],
     where: {
-      searchedAt: {
+      createdAt: {
         gte: since
       }
     },

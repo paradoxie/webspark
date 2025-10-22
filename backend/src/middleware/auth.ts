@@ -45,8 +45,8 @@ export const authenticate = async (
       });
     }
 
-    // 处理固定的管理员测试token
-    if (token === 'test-admin-token') {
+    // 处理固定的管理员测试token（仅开发环境）
+    if (process.env.NODE_ENV === 'development' && token === 'test-admin-token') {
       let user = await prisma.user.findUnique({
         where: { id: 1 },
         select: {
@@ -88,46 +88,24 @@ export const authenticate = async (
         req.user = user;
         return next();
       } else {
-        return res.status(403).json({ 
+        return res.status(403).json({
           error: 'Account is deactivated.',
           code: 'ACCOUNT_DEACTIVATED'
         });
       }
     }
 
-    // 首先尝试解码测试token (base64编码的JSON)
-    try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8');
-      const payload = JSON.parse(decoded);
-      
-      if (payload.sub && payload.email) {
-        // 这是测试token，查找或创建用户
-        const userId = parseInt(payload.sub);
-        let user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            email: true,
-            username: true,
-            name: true,
-            avatar: true,
-            isActive: true,
-            role: true,
-          },
-        });
+    // 首先尝试解码测试token (base64编码的JSON) - 仅开发环境
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8');
+        const payload = JSON.parse(decoded);
 
-        if (!user && userId === 1) {
-          // 如果是管理员但不存在，创建管理员用户
-          user = await prisma.user.create({
-            data: {
-              id: 1,
-              email: payload.email,
-              username: 'admin',
-              githubId: 'test_admin',
-              name: payload.name,
-              isActive: true,
-              role: 'ADMIN',
-            },
+        if (payload.sub && payload.email) {
+          // 这是测试token，查找或创建用户
+          const userId = parseInt(payload.sub);
+          let user = await prisma.user.findUnique({
+            where: { id: userId },
             select: {
               id: true,
               email: true,
@@ -138,20 +116,44 @@ export const authenticate = async (
               role: true,
             },
           });
-        }
 
-        if (user && user.isActive) {
-          req.user = user;
-          return next();
-        } else {
-          return res.status(403).json({ 
-            error: 'Account is deactivated.',
-            code: 'ACCOUNT_DEACTIVATED'
-          });
+          if (!user && userId === 1) {
+            // 如果是管理员但不存在，创建管理员用户
+            user = await prisma.user.create({
+              data: {
+                id: 1,
+                email: payload.email,
+                username: 'admin',
+                githubId: 'test_admin',
+                name: payload.name,
+                isActive: true,
+                role: 'ADMIN',
+              },
+              select: {
+                id: true,
+                email: true,
+                username: true,
+                name: true,
+                avatar: true,
+                isActive: true,
+                role: true,
+              },
+            });
+          }
+
+          if (user && user.isActive) {
+            req.user = user;
+            return next();
+          } else {
+            return res.status(403).json({
+              error: 'Account is deactivated.',
+              code: 'ACCOUNT_DEACTIVATED'
+            });
+          }
         }
+      } catch (testTokenError) {
+        // 如果不是测试token，继续处理正常的JWT
       }
-    } catch (testTokenError) {
-      // 如果不是测试token，继续处理正常的JWT
     }
 
     // 尝试验证 JWT 令牌
@@ -159,27 +161,29 @@ export const authenticate = async (
     try {
       decoded = jwt.verify(token, config.nextAuthSecret) as any;
     } catch (jwtError) {
-      // 如果令牌验证失败，可能是因为令牌本身就是用户ID
-      // 尝试直接将令牌作为githubId或userId使用
-      const userByGithubId = await prisma.user.findFirst({
-        where: { OR: [{ githubId: token }, { id: parseInt(token) || 0 }] },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          name: true,
-          avatar: true,
-          isActive: true,
-          role: true,
-        }
-      });
+      // 仅在开发环境允许fallback逻辑
+      if (process.env.NODE_ENV === 'development') {
+        // 如果令牌验证失败，可能是因为令牌本身就是用户ID
+        const userByGithubId = await prisma.user.findFirst({
+          where: { OR: [{ githubId: token }, { id: parseInt(token) || 0 }] },
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            name: true,
+            avatar: true,
+            isActive: true,
+            role: true,
+          }
+        });
 
-      if (userByGithubId && userByGithubId.isActive) {
-        req.user = userByGithubId;
-        return next();
+        if (userByGithubId && userByGithubId.isActive) {
+          req.user = userByGithubId;
+          return next();
+        }
       }
 
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Invalid token.',
         code: 'INVALID_TOKEN'
       });
@@ -316,22 +320,24 @@ export const optionalAuth = async (
     try {
       decoded = jwt.verify(token, config.nextAuthSecret) as any;
     } catch (jwtError) {
-      // 如果令牌验证失败，可能是因为令牌本身就是用户ID
-      const userByGithubId = await prisma.user.findFirst({
-        where: { OR: [{ githubId: token }, { id: parseInt(token) || 0 }] },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          name: true,
-          avatar: true,
-          isActive: true,
-          role: true,
-        }
-      });
+      // 仅在开发环境允许fallback逻辑
+      if (process.env.NODE_ENV === 'development') {
+        const userByGithubId = await prisma.user.findFirst({
+          where: { OR: [{ githubId: token }, { id: parseInt(token) || 0 }] },
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            name: true,
+            avatar: true,
+            isActive: true,
+            role: true,
+          }
+        });
 
-      if (userByGithubId && userByGithubId.isActive) {
-        req.user = userByGithubId;
+        if (userByGithubId && userByGithubId.isActive) {
+          req.user = userByGithubId;
+        }
       }
       return next();
     }
@@ -376,13 +382,14 @@ export const requireAdmin = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<void> => {
   try {
     if (!req.user) {
-      return res.status(401).json({
+      res.status(401).json({
         error: 'Authentication required',
         code: 'AUTH_REQUIRED'
       });
+      return;
     }
 
     // 查询用户角色
@@ -392,17 +399,19 @@ export const requireAdmin = async (
     });
 
     if (!user || !user.isActive) {
-      return res.status(403).json({
+      res.status(403).json({
         error: 'Account not found or deactivated',
         code: 'ACCOUNT_INVALID'
       });
+      return;
     }
 
     if (user.role !== 'ADMIN' && user.role !== 'MODERATOR') {
-      return res.status(403).json({
+      res.status(403).json({
         error: 'Administrator privileges required',
         code: 'INSUFFICIENT_PRIVILEGES'
       });
+      return;
     }
 
     // 将角色信息添加到请求对象中
@@ -410,9 +419,12 @@ export const requireAdmin = async (
     next();
   } catch (error) {
     console.error('Admin authorization error:', error);
-    return res.status(500).json({
+    res.status(500).json({
       error: 'Authorization check failed',
       code: 'AUTH_CHECK_ERROR'
     });
   }
-}; 
+};
+
+// Export authenticate as authMiddleware for compatibility
+export const authMiddleware = authenticate; 

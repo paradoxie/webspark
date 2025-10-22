@@ -10,16 +10,9 @@ const HTML_PURIFY_CONFIG = {
     'blockquote',
     'a'
   ],
-  ALLOWED_ATTR: {
-    'a': ['href', 'target', 'rel'],
-    'code': ['class'],
-    'pre': ['class']
-  },
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
   ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-  ADD_ATTR: ['target'],
-  DOMPurifyConfig: {
-    ADD_ATTR: ['target']
-  }
+  ADD_ATTR: ['target']
 };
 
 export class SecurityValidator {
@@ -29,20 +22,12 @@ export class SecurityValidator {
    */
   static sanitizeHtml(html: string): string {
     if (!html || typeof html !== 'string') return '';
-    
+
     return DOMPurify.sanitize(html, {
       ...HTML_PURIFY_CONFIG,
-      // 确保外部链接安全
-      HOOK_BEFORE_CLEAN: (node: any) => {
-        const links = node.querySelectorAll('a[href]');
-        links.forEach((link: any) => {
-          const href = link.getAttribute('href');
-          if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
-            link.setAttribute('target', '_blank');
-            link.setAttribute('rel', 'noopener noreferrer');
-          }
-        });
-      }
+      // Ensure external links are safe
+      FORBID_ATTR: ['style'],
+      FORBID_TAGS: ['style', 'script']
     });
   }
 
@@ -64,31 +49,29 @@ export class SecurityValidator {
    */
   static validateUrl(url: string): boolean {
     if (!url || typeof url !== 'string') return false;
-    
+
     try {
       const urlObj = new URL(url);
-      
-      // 只允许HTTP和HTTPS协议
+
+      // Only allow HTTP and HTTPS protocols
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
         return false;
       }
-      
-      // 检查是否为有效URL格式
+
+      // Check if it's a valid URL format
       if (!validator.isURL(url, {
         protocols: ['http', 'https'],
         require_protocol: true,
         require_host: true,
         require_valid_protocol: true,
         allow_underscores: false,
-        host_whitelist: false,
-        host_blacklist: false,
         allow_trailing_dot: false,
         allow_protocol_relative_urls: false,
         disallow_auth: true
       })) {
         return false;
       }
-      
+
       return true;
     } catch (error) {
       return false;

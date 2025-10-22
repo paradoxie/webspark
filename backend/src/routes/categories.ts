@@ -40,7 +40,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // 按分类获取网站
-router.get('/:slug/websites', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:slug/websites', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { slug } = req.params;
   const { page = 1, pageSize = 12 } = req.query;
   
@@ -80,8 +80,8 @@ router.get('/:slug/websites', asyncHandler(async (req: Request, res: Response) =
         },
         _count: {
           select: {
-            likedBy: true,
-            bookmarkedBy: true,
+            websiteLikes: true,
+            bookmarks: true,
           },
         },
       },
@@ -175,8 +175,8 @@ router.get('/top/:count', async (req: Request, res: Response) => {
             },
             _count: {
               select: {
-                likedBy: true,
-                bookmarkedBy: true
+                websiteLikes: true,
+                bookmarks: true
               }
             }
           }

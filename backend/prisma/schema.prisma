@@ -8,36 +8,34 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  username  String   @unique
-  githubId  String   @unique
-  name      String?
-  avatar    String?
-  bio                String?  @db.Text
+  id                 Int       @id @default(autoincrement())
+  email              String    @unique
+  username           String    @unique
+  githubId           String    @unique
+  name               String?
+  avatar             String?
+  bio                String?   @db.Text
   website            String?
-  github             String?  // GitHub用户名
+  github             String? // GitHub用户名
   location           String?
-  emailNotifications Boolean  @default(true)
-  isActive           Boolean  @default(true)
-  isHiring           Boolean  @default(false) // 添加招聘状态字段
-  role               UserRole @default(USER)  // 用户角色
+  emailNotifications Boolean   @default(true)
+  isActive           Boolean   @default(true)
+  isHiring           Boolean   @default(false) // 添加招聘状态字段
+  role               UserRole  @default(USER) // 用户角色
   lastLoginAt        DateTime? // 添加最后登录时间
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
   websites      Website[]
   comments      Comment[]
   notifications Notification[]
   reports       Report[]
-  likedSites    Website[] @relation("UserLikes")
-  bookmarks     Website[] @relation("UserBookmarks")
-  likedComments Comment[] @relation("CommentLikes")
+  likedComments Comment[]      @relation("CommentLikes")
 
   // 关注关系 - 多对多自关联
-  following     User[] @relation("UserFollows")
-  followers     User[] @relation("UserFollows")
+  following User[] @relation("UserFollows")
+  followers User[] @relation("UserFollows")
 
   // 保存的搜索
   savedSearches SavedSearch[]
@@ -46,10 +44,20 @@ model User {
   // 网站点击记录
   websiteClicks WebsiteClick[]
   websiteLikes  WebsiteLike[]
-  userBookmarks Bookmark[] @relation("UserBookmarks")
-  
+  userBookmarks Bookmark[]
+
   // 推荐反馈
   recommendationFeedbacks RecommendationFeedback[]
+
+  // 新增关系
+  followersRel Follow[] @relation("UserFollowers")
+  followingRel Follow[] @relation("UserFollowing")
+  activities Activity[] @relation("UserActivities")
+  notificationSettings NotificationSettings? @relation("UserNotificationSettings")
+  pushSubscriptions PushSubscription[] @relation("UserPushSubscriptions")
+  apiKeys ApiKey[] @relation("UserApiKeys")
+  trustedDevices TrustedDevice[] @relation("UserTrustedDevices")
+  userCommentLikes CommentLike[] @relation("UserCommentLikes")
 
   @@map("users")
 }
@@ -62,7 +70,7 @@ model Website {
   shortDescription String    @db.VarChar(160)
   description      String    @db.Text
   sourceUrl        String?   @db.VarChar(500)
-  screenshots      Json?     // 存储截图URL数组
+  screenshots      Json? // 存储截图URL数组
   status           Status    @default(PENDING)
   featured         Boolean   @default(false)
   likeCount        Int       @default(0)
@@ -81,14 +89,12 @@ model Website {
   comments      Comment[]
   notifications Notification[]
   reports       Report[]
-  likedBy       User[]         @relation("UserLikes")
-  bookmarkedBy  User[]         @relation("UserBookmarks")
 
   // 新增关系
   websiteClicks WebsiteClick[]
   websiteLikes  WebsiteLike[]
   bookmarks     Bookmark[]
-  
+
   // 推荐反馈
   recommendationFeedbacks RecommendationFeedback[]
 
@@ -96,16 +102,16 @@ model Website {
 }
 
 model Category {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique @db.VarChar(30)
-  slug        String    @unique
-  description String?   @db.VarChar(200)
-  icon        String?   @db.VarChar(50) // emoji or icon name
-  color       String?   @db.VarChar(7)
-  sortOrder   Int       @default(0)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(30)
+  slug        String   @unique
+  description String?  @db.VarChar(200)
+  icon        String?  @db.VarChar(50) // emoji or icon name
+  color       String?  @db.VarChar(7)
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   websites Website[]
@@ -114,13 +120,13 @@ model Category {
 }
 
 model Tag {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique @db.VarChar(30)
-  slug        String    @unique
-  description String?   @db.VarChar(200)
-  color       String?   @db.VarChar(7)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(30)
+  slug        String   @unique
+  description String?  @db.VarChar(200)
+  color       String?  @db.VarChar(7)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   // Relations
   websites Website[] @relation("WebsiteTags")
@@ -132,6 +138,7 @@ model Comment {
   id        Int      @id @default(autoincrement())
   content   String   @db.Text
   likeCount Int      @default(0)
+  status    CommentStatus @default(APPROVED)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -142,6 +149,7 @@ model Comment {
   author        User           @relation(fields: [authorId], references: [id])
   notifications Notification[]
   likedBy       User[]         @relation("CommentLikes")
+  commentLikes  CommentLike[]  @relation("CommentLikedByUsers")
 
   // 回复关系（自关联）
   parentId Int?
@@ -160,9 +168,9 @@ model Notification {
   createdAt DateTime         @default(now())
 
   // Relations
-  userId    Int
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // 关联的资源（可选）
   websiteId Int?
   website   Website? @relation(fields: [websiteId], references: [id], onDelete: Cascade)
@@ -192,8 +200,8 @@ model SavedSearch {
   id        Int      @id @default(autoincrement())
   name      String   @db.VarChar(100) // 用户自定义的搜索名称
   query     String   @db.VarChar(500) // 搜索查询字符串
-  filters   Json?    // 保存的筛选条件 (category, tags, etc.)
-  isActive  Boolean  @default(true)   // 是否激活
+  filters   Json? // 保存的筛选条件 (category, tags, etc.)
+  isActive  Boolean  @default(true) // 是否激活
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -208,9 +216,10 @@ model SavedSearch {
 model SearchHistory {
   id        Int      @id @default(autoincrement())
   query     String   @db.VarChar(500) // 搜索查询字符串
-  filters   Json?    // 搜索时的筛选条件
-  results   Int      @default(0)      // 搜索结果数量
+  filters   Json? // 搜索时的筛选条件
+  results   Int      @default(0) // 搜索结果数量
   createdAt DateTime @default(now())
+  searchedAt DateTime @default(now())
 
   // Relations
   userId Int
@@ -222,18 +231,18 @@ model SearchHistory {
 
 // 新增模型：网站点击记录
 model WebsiteClick {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   websiteId Int
-  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   userId    Int?
-  user      User?    @relation(fields: [userId], references: [id])
-  
+  user      User?   @relation(fields: [userId], references: [id])
+
   // 点击详情
-  ipAddress   String?  @db.VarChar(45)
-  userAgent   String?  @db.Text
-  referrer    String?  @db.VarChar(500)
-  clickType   String   @default("view") // view, external_link, etc.
-  
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+  referrer  String? @db.VarChar(500)
+  clickType String  @default("view") // view, external_link, etc.
+
   createdAt DateTime @default(now())
 
   @@index([websiteId, createdAt])
@@ -243,12 +252,12 @@ model WebsiteClick {
 
 // 新增模型：网站点赞记录
 model WebsiteLike {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   websiteId Int
-  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   userId    Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
 
   @@unique([websiteId, userId])
@@ -257,12 +266,12 @@ model WebsiteLike {
 
 // 新增模型：收藏记录
 model Bookmark {
-  id        Int      @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   websiteId Int
-  website   Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   userId    Int
-  user      User     @relation("UserBookmarks", fields: [userId], references: [id], onDelete: Cascade)
-  
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
 
   @@unique([websiteId, userId])
@@ -271,17 +280,17 @@ model Bookmark {
 
 // 新增模型：推荐反馈
 model RecommendationFeedback {
-  id                 Int      @id @default(autoincrement())
+  id                 Int                @id @default(autoincrement())
   userId             Int
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   websiteId          Int
-  website            Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  website            Website            @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   recommendationType RecommendationType
-  rating             Int      // 1-5 star rating
-  feedback           String?  @db.Text
-  context            Json?    // Additional context data
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  rating             Int // 1-5 star rating
+  feedback           String?            @db.Text
+  context            Json? // Additional context data
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   @@unique([userId, websiteId, recommendationType, createdAt(sort: Desc)], name: "unique_daily_feedback")
   @@index([userId, createdAt])
@@ -331,4 +340,122 @@ enum RecommendationType {
   SIMILAR_USERS
   TRENDING
   HYBRID
-} 
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DELETED
+}
+
+model Follow {
+  id          Int      @id @default(autoincrement())
+  followerId  Int
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId Int
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+  @@map("follows")
+}
+
+model Activity {
+  id        Int          @id @default(autoincrement())
+  userId    Int
+  user      User         @relation("UserActivities", fields: [userId], references: [id], onDelete: Cascade)
+  type      ActivityType
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@map("activities")
+}
+
+enum ActivityType {
+  WEBSITE_CREATED
+  WEBSITE_LIKED
+  WEBSITE_VIEWED
+  COMMENT_POSTED
+  USER_FOLLOWED
+  WEBSITE_BOOKMARKED
+}
+
+model NotificationSettings {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  user            User     @relation("UserNotificationSettings", fields: [userId], references: [id], onDelete: Cascade)
+  emailEnabled    Boolean  @default(true)
+  pushEnabled     Boolean  @default(true)
+  smsEnabled      Boolean  @default(false)
+  quietHoursStart Int?
+  quietHoursEnd   Int?
+  blockedTypes    Json?
+  preferredChannels Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("notification_settings")
+}
+
+model PushSubscription {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation("UserPushSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+  endpoint     String   @db.Text
+  keys         Json
+  failureCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model ApiKey {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation("UserApiKeys", fields: [userId], references: [id], onDelete: Cascade)
+  key         String   @unique
+  name        String
+  permissions Json
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model TrustedDevice {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation("UserTrustedDevices", fields: [userId], references: [id], onDelete: Cascade)
+  deviceHash String
+  name       String?
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, deviceHash])
+  @@index([userId])
+  @@map("trusted_devices")
+}
+
+model CommentLike {
+  id        Int      @id @default(autoincrement())
+  commentId Int
+  comment   Comment  @relation("CommentLikedByUsers", fields: [commentId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation("UserCommentLikes", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+  @@map("comment_likes")
+}

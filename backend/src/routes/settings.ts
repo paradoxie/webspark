@@ -7,7 +7,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 const router = Router();
 
 // 获取用户设置
-router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: {
@@ -31,7 +31,7 @@ router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
 }));
 
 // 更新用户设置
-router.put('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const schema = Joi.object({
     emailNotifications: Joi.boolean().optional(),
     // 可以添加更多设置字段
@@ -62,7 +62,7 @@ router.put('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
 }));
 
 // 测试邮件发送
-router.post('/test-email', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/test-email', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
     select: {

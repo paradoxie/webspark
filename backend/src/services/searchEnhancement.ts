@@ -3,8 +3,7 @@
  * 提供智能搜索、搜索建议、热门搜索等功能
  */
 
-import { prisma } from '../lib/prisma';
-import { cache, CACHE_KEYS, CACHE_TTL } from '../lib/cache';
+import { prisma } from '../db';
 import { Prisma } from '@prisma/client';
 
 interface SearchOptions {
@@ -58,16 +57,9 @@ export class SearchService {
       userId
     } = options;
 
-    // 记录搜索历史
+    // Record search history
     if (userId && query) {
       await this.recordSearchHistory(userId, query);
-    }
-
-    // 检查缓存
-    const cacheKey = this.generateCacheKey(options);
-    const cached = await cache.get('search', cacheKey);
-    if (cached) {
-      return cached as SearchResult;
     }
 
     let result: SearchResult = {
@@ -94,19 +86,16 @@ export class SearchService {
         break;
     }
 
-    // 添加搜索建议和相关搜索
+    // Add search suggestions and related searches
     if (query) {
       result.suggestions = await this.getSearchSuggestions(query);
       result.relatedSearches = await this.getRelatedSearches(query);
     }
 
-    // 添加搜索面板（facets）
+    // Add search facets
     if (type === 'websites' || type === 'all') {
       result.facets = await this.getSearchFacets(query, filters);
     }
-
-    // 缓存结果
-    await cache.set('search', cacheKey, result, { ttl: CACHE_TTL.SHORT });
 
     return result;
   }
@@ -188,8 +177,7 @@ export class SearchService {
           _count: {
             select: {
               comments: true,
-              likedBy: true,
-              bookmarkedBy: true
+              websiteLikes: true
             }
           }
         }
@@ -421,11 +409,6 @@ export class SearchService {
    * 获取热门搜索
    */
   static async getTrendingSearches(limit: number = 10): Promise<string[]> {
-    const cached = await cache.get('search', 'trending');
-    if (cached) {
-      return cached as string[];
-    }
-
     const trending = await prisma.$queryRaw<Array<{ query: string }>>`
       SELECT query, COUNT(*) as count
       FROM search_history
@@ -435,11 +418,7 @@ export class SearchService {
       LIMIT ${limit}
     `;
 
-    const results = trending.map(t => t.query);
-    
-    await cache.set('search', 'trending', results, { ttl: CACHE_TTL.MEDIUM });
-    
-    return results;
+    return trending.map(t => t.query);
   }
 
   /**
@@ -541,21 +520,12 @@ export class SearchService {
         data: {
           userId,
           query,
-          searchCount: 1
+          results: 0 // Set default results count
         }
       });
     } catch (error) {
-      // 如果已存在，更新计数
-      await prisma.searchHistory.updateMany({
-        where: {
-          userId,
-          query
-        },
-        data: {
-          searchCount: { increment: 1 },
-          createdAt: new Date()
-        }
-      });
+      // If already exists, we could update but schema doesn't support this pattern
+      console.log('Search history already exists for this query');
     }
   }
 

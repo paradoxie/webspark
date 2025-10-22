@@ -8,7 +8,6 @@ import Breadcrumb from '@/components/common/Breadcrumb'
 import { WebsiteScreenshot, UserAvatar } from '@/components/common/SEOOptimizedImage'
 import RelatedContent, { InternalLinkRecommendations } from '@/components/common/RelatedContent'
 import SocialShare from '@/components/common/SocialShare'
-import EnhancedExternalLink from '@/components/common/EnhancedExternalLink'
 import BacklinkAnalytics from '@/components/common/BacklinkAnalytics'
 
 interface Website {
@@ -253,15 +252,22 @@ export default async function WebsiteDetailPage({ params }: PageProps) {
                       </svg>
                     </div>
                     <p className="text-sm text-slate-600 mb-4">网站预览</p>
-                    <EnhancedExternalLink
-                      websiteId={website.id}
-                      url={website.url}
-                      title={website.title}
-                      linkType="main"
+                    <a
+                      href={website.url}
+                      target="_blank"
+                      rel={website.likeCount >= 50 || website.featured ? 'noopener' : website.likeCount >= 10 ? 'noopener ugc' : 'noopener nofollow ugc'}
+                      onClick={() => {
+                        // 简单的点击统计
+                        fetch(`/api/websites/${website.id}/track-click`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ linkType: 'main' })
+                        }).catch(() => {});
+                      }}
                       className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors inline-flex items-center"
                     >
                       访问网站 →
-                    </EnhancedExternalLink>
+                    </a>
                   </div>
                 </div>
 
@@ -300,6 +306,18 @@ export default async function WebsiteDetailPage({ params }: PageProps) {
                     </Link>
                   ))}
                 </div>
+
+                {/* SEO价值标签 */}
+                {(website.likeCount >= 50 || website.featured) && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-green-600">🚀</span>
+                      <span className="text-sm font-medium text-green-800">
+                        此作品传递SEO权重 (DoFollow)
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* 作者信息 */}
                 <div className="flex items-center space-x-3 pb-6 border-b border-slate-200">

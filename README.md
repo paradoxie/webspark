@@ -73,6 +73,9 @@ npm run dev                 # 启动前端 (http://localhost:3000)
 
 ## 📚 项目文档
 
+### 📖 文档导航
+- **[文档索引](./docs/INDEX.md)** - 所有文档的快速导航
+
 ### 核心文档
 - [贡献指南](./CONTRIBUTING.md) - 如何为项目贡献代码
 - [行为准则](./CODE_OF_CONDUCT.md) - 社区行为规范
@@ -83,6 +86,7 @@ npm run dev                 # 启动前端 (http://localhost:3000)
 - [架构设计](./docs/ARCHITECTURE.md) - 系统架构详解
 - [API 参考](./docs/API_REFERENCE.md) - 完整的API文档
 - [部署指南](./docs/DEPLOYMENT.md) - 生产环境部署教程
+- [后端优化指南](./backend/OPTIMIZATION_GUIDE.md) - 性能优化完整指南
 - [GitHub OAuth](./docs/GITHUB_OAUTH_SETUP.md) - OAuth配置指南
 
 ### 项目分析

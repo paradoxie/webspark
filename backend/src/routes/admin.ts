@@ -9,7 +9,7 @@ const router = Router();
 const prisma = new PrismaClient();
 
 // 获取待审核的网站列表
-router.get('/websites', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/websites', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { status = 'PENDING', page = 1, pageSize = 20 } = req.query;
   
   const skip = (Number(page) - 1) * Number(pageSize);
@@ -58,7 +58,7 @@ router.get('/websites', authenticate, requireAdmin, asyncHandler(async (req: Aut
 }));
 
 // 审核通过网站
-router.post('/websites/:id/approve', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/websites/:id/approve', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   
   const website = await prisma.website.update({
@@ -89,7 +89,7 @@ router.post('/websites/:id/approve', authenticate, requireAdmin, asyncHandler(as
 }));
 
 // 拒绝网站
-router.post('/websites/:id/reject', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/websites/:id/reject', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   const { reason } = req.body;
   
@@ -125,7 +125,7 @@ router.post('/websites/:id/reject', authenticate, requireAdmin, asyncHandler(asy
 }));
 
 // 设置/取消精选
-router.post('/websites/:id/toggle-featured', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/websites/:id/toggle-featured', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   
   const currentWebsite = await prisma.website.findUnique({
@@ -149,7 +149,7 @@ router.post('/websites/:id/toggle-featured', authenticate, requireAdmin, asyncHa
 }));
 
 // 批量审核网站
-router.post('/websites/batch', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/websites/batch', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { action, websiteIds, reason } = req.body;
   
   if (!action || !websiteIds || !Array.isArray(websiteIds)) {
@@ -259,7 +259,7 @@ router.post('/websites/batch', authenticate, requireAdmin, asyncHandler(async (r
 }));
 
 // 批量标签编辑
-router.post('/websites/batch-tags', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/websites/batch-tags', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { websiteIds, addTags, removeTags } = req.body;
   
   if (!websiteIds || !Array.isArray(websiteIds)) {
@@ -332,7 +332,7 @@ router.post('/websites/batch-tags', authenticate, requireAdmin, asyncHandler(asy
 }));
 
 // 获取用户列表
-router.get('/users', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/users', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { page = 1, pageSize = 20, search } = req.query;
   
   const skip = (Number(page) - 1) * Number(pageSize);
@@ -385,7 +385,7 @@ router.get('/users', authenticate, requireAdmin, asyncHandler(async (req: Authen
 }));
 
 // 启用/禁用用户
-router.post('/users/:id/toggle', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/users/:id/toggle', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   
   const currentUser = await prisma.user.findUnique({
@@ -409,7 +409,7 @@ router.post('/users/:id/toggle', authenticate, requireAdmin, asyncHandler(async 
 }));
 
 // 获取管理统计数据
-router.get('/stats', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/stats', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const [
     totalUsers,
     totalWebsites,
@@ -524,7 +524,7 @@ router.get('/stats', authenticate, requireAdmin, asyncHandler(async (req: Authen
 // === 分类管理 API ===
 
 // 获取所有分类
-router.get('/categories', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/categories', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const categories = await prisma.category.findMany({
     select: {
       id: true,
@@ -558,7 +558,7 @@ router.get('/categories', authenticate, requireAdmin, asyncHandler(async (req: A
 }));
 
 // 创建分类
-router.post('/categories', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/categories', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { name, description, icon, color } = req.body;
 
   if (!name) {
@@ -601,7 +601,7 @@ router.post('/categories', authenticate, requireAdmin, asyncHandler(async (req: 
 }));
 
 // 更新分类
-router.put('/categories/:id', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/categories/:id', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   const { name, description, icon, color, sortOrder, isActive } = req.body;
 
@@ -624,7 +624,7 @@ router.put('/categories/:id', authenticate, requireAdmin, asyncHandler(async (re
 }));
 
 // 删除分类
-router.delete('/categories/:id', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/categories/:id', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
 
   // 检查是否有关联的网站
@@ -651,7 +651,7 @@ router.delete('/categories/:id', authenticate, requireAdmin, asyncHandler(async 
 }));
 
 // 切换分类状态
-router.post('/categories/:id/toggle', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/categories/:id/toggle', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   
   const currentCategory = await prisma.category.findUnique({
@@ -675,7 +675,7 @@ router.post('/categories/:id/toggle', authenticate, requireAdmin, asyncHandler(a
 }));
 
 // 获取举报列表
-router.get('/reports', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/reports', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { status, reason, page = 1, pageSize = 20 } = req.query;
 
   const skip = (Number(page) - 1) * Number(pageSize);
@@ -739,7 +739,7 @@ router.get('/reports', authenticate, requireAdmin, asyncHandler(async (req: Auth
 }));
 
 // 处理举报（关闭）
-router.put('/reports/:id/close', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/reports/:id/close', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
 
   const report = await prisma.report.findUnique({
@@ -766,7 +766,7 @@ router.put('/reports/:id/close', authenticate, requireAdmin, asyncHandler(async 
 }));
 
 // 忽略举报（关闭但不采取行动）
-router.put('/reports/:id/dismiss', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/reports/:id/dismiss', authenticate, requireAdmin, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { id } = req.params;
 
   const report = await prisma.report.findUnique({

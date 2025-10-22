@@ -19,7 +19,7 @@ const updateCommentSchema = Joi.object({
 });
 
 // 获取网站的评论列表（支持多级嵌套）
-router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
+router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { websiteId } = req.params;
   const { page = 1, pageSize = 20 } = req.query;
   
@@ -136,7 +136,7 @@ router.get('/website/:websiteId', optionalAuth, asyncHandler(async (req: Request
 }));
 
 // 创建评论
-router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   // 验证请求数据
   const { error, value } = createCommentSchema.validate(req.body);
   if (error) {
@@ -238,7 +238,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
 }));
 
 // 更新评论
-router.put('/:commentId', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:commentId', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { commentId } = req.params;
   const userId = req.user!.id;
 
@@ -306,7 +306,7 @@ router.put('/:commentId', authenticate, asyncHandler(async (req: AuthenticatedRe
 }));
 
 // 删除评论
-router.delete('/:commentId', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:commentId', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { commentId } = req.params;
   const userId = req.user!.id;
 
@@ -340,7 +340,7 @@ router.delete('/:commentId', authenticate, asyncHandler(async (req: Authenticate
 }));
 
 // 点赞/取消点赞评论
-router.put('/:commentId/like', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:commentId/like', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { commentId } = req.params;
   const userId = req.user!.id;
 

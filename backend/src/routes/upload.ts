@@ -1,30 +1,16 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
-import sharp from 'sharp';
 import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
+import { r2Storage } from '../services/r2Storage';
 
 const router = Router();
 
-// 确保上传目录存在
-const uploadDir = path.join(process.cwd(), 'uploads');
-const avatarDir = path.join(uploadDir, 'avatars');
-const screenshotDir = path.join(uploadDir, 'screenshots');
-
-[uploadDir, avatarDir, screenshotDir].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
-
-// 配置multer存储
+// 配置multer存储（内存存储）
 const storage = multer.memoryStorage();
 
 // 文件过滤器
 const fileFilter = (req: any, file: Express.Multer.File, cb: any) => {
-  // 检查文件类型
   if (file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
@@ -41,56 +27,8 @@ const upload = multer({
   },
 });
 
-// 生成唯一文件名
-const generateFileName = (originalName: string): string => {
-  const ext = path.extname(originalName);
-  const name = path.basename(originalName, ext);
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 8);
-  return `${name}-${timestamp}-${random}${ext}`;
-};
-
-// 处理图片（压缩和调整大小）
-const processImage = async (
-  buffer: Buffer,
-  type: 'avatar' | 'screenshot',
-  filename: string
-): Promise<string> => {
-  let processedBuffer: Buffer;
-
-  if (type === 'avatar') {
-    // 头像：正方形，200x200
-    processedBuffer = await sharp(buffer)
-      .resize(200, 200, {
-        fit: 'cover',
-        position: 'center'
-      })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-  } else {
-    // 截图：保持比例，最大宽度1200px
-    processedBuffer = await sharp(buffer)
-      .resize(1200, null, {
-        fit: 'inside',
-        withoutEnlargement: true
-      })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-  }
-
-  const outputPath = path.join(
-    type === 'avatar' ? avatarDir : screenshotDir,
-    filename
-  );
-
-  await fs.promises.writeFile(outputPath, processedBuffer);
-  
-  // 返回相对URL路径
-  return `/uploads/${type === 'avatar' ? 'avatars' : 'screenshots'}/${filename}`;
-};
-
 // 上传头像
-router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!req.file) {
     return res.status(400).json({
       error: 'No file uploaded',
@@ -99,20 +37,38 @@ router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(async
   }
 
   try {
-    const filename = generateFileName(req.file.originalname).replace(/\.[^/.]+$/, '.jpg');
-    const imagePath = await processImage(req.file.buffer, 'avatar', filename);
+    const filename = r2Storage.generateFileName(req.file.originalname).replace(/\.[^/.]+$/, '.jpg');
+    const imageUrl = await r2Storage.uploadImage(req.file.buffer, filename, 'avatar');
 
     // 更新用户头像
     const { prisma } = await import('../db');
+
+    // 删除旧头像（如果存在且是R2存储的）
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { avatar: true }
+    });
+
+    if (user?.avatar) {
+      const oldKey = r2Storage.extractKeyFromUrl(user.avatar);
+      if (oldKey) {
+        try {
+          await r2Storage.deleteImage(oldKey);
+        } catch (error) {
+          console.warn('Failed to delete old avatar:', error);
+        }
+      }
+    }
+
     await prisma.user.update({
       where: { id: req.user!.id },
-      data: { avatar: imagePath }
+      data: { avatar: imageUrl }
     });
 
     res.json({
       message: 'Avatar uploaded successfully',
       data: {
-        url: imagePath,
+        url: imageUrl,
         filename
       }
     });
@@ -126,7 +82,7 @@ router.post('/avatar', authenticate, upload.single('avatar'), asyncHandler(async
 }));
 
 // 上传作品截图
-router.post('/screenshot', authenticate, upload.single('screenshot'), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/screenshot', authenticate, upload.single('screenshot'), asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (!req.file) {
     return res.status(400).json({
       error: 'No file uploaded',
@@ -135,13 +91,13 @@ router.post('/screenshot', authenticate, upload.single('screenshot'), asyncHandl
   }
 
   try {
-    const filename = generateFileName(req.file.originalname).replace(/\.[^/.]+$/, '.jpg');
-    const imagePath = await processImage(req.file.buffer, 'screenshot', filename);
+    const filename = r2Storage.generateFileName(req.file.originalname).replace(/\.[^/.]+$/, '.jpg');
+    const imageUrl = await r2Storage.uploadImage(req.file.buffer, filename, 'screenshot');
 
     res.json({
       message: 'Screenshot uploaded successfully',
       data: {
-        url: imagePath,
+        url: imageUrl,
         filename
       }
     });
@@ -155,9 +111,9 @@ router.post('/screenshot', authenticate, upload.single('screenshot'), asyncHandl
 }));
 
 // 批量上传（多张截图）
-router.post('/screenshots', authenticate, upload.array('screenshots', 5), asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/screenshots', authenticate, upload.array('screenshots', 5), asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const files = req.files as Express.Multer.File[];
-  
+
   if (!files || files.length === 0) {
     return res.status(400).json({
       error: 'No files uploaded',
@@ -167,11 +123,11 @@ router.post('/screenshots', authenticate, upload.array('screenshots', 5), asyncH
 
   try {
     const uploadPromises = files.map(async (file) => {
-      const filename = generateFileName(file.originalname).replace(/\.[^/.]+$/, '.jpg');
-      const imagePath = await processImage(file.buffer, 'screenshot', filename);
+      const filename = r2Storage.generateFileName(file.originalname).replace(/\.[^/.]+$/, '.jpg');
+      const imageUrl = await r2Storage.uploadImage(file.buffer, filename, 'screenshot');
       return {
         originalName: file.originalname,
-        url: imagePath,
+        url: imageUrl,
         filename
       };
     });
@@ -192,9 +148,9 @@ router.post('/screenshots', authenticate, upload.array('screenshots', 5), asyncH
 }));
 
 // 删除上传的文件
-router.delete('/:type/:filename', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:type/:filename', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { type, filename } = req.params;
-  
+
   if (!['avatars', 'screenshots'].includes(type)) {
     return res.status(400).json({
       error: 'Invalid file type',
@@ -202,23 +158,15 @@ router.delete('/:type/:filename', authenticate, asyncHandler(async (req: Authent
     });
   }
 
-  const filePath = path.join(uploadDir, type, filename);
+  const key = `${type}/${filename}`;
 
   try {
-    await fs.promises.access(filePath);
-    await fs.promises.unlink(filePath);
+    await r2Storage.deleteImage(key);
 
     res.json({
       message: 'File deleted successfully'
     });
   } catch (error) {
-    if ((error as any).code === 'ENOENT') {
-      return res.status(404).json({
-        error: 'File not found',
-        code: 'FILE_NOT_FOUND'
-      });
-    }
-    
     console.error('File deletion error:', error);
     res.status(500).json({
       error: 'Failed to delete file',
@@ -228,9 +176,9 @@ router.delete('/:type/:filename', authenticate, asyncHandler(async (req: Authent
 }));
 
 // 获取文件信息
-router.get('/info/:type/:filename', asyncHandler(async (req: Request, res: Response) => {
+router.get('/info/:type/:filename', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { type, filename } = req.params;
-  
+
   if (!['avatars', 'screenshots'].includes(type)) {
     return res.status(400).json({
       error: 'Invalid file type',
@@ -238,36 +186,22 @@ router.get('/info/:type/:filename', asyncHandler(async (req: Request, res: Respo
     });
   }
 
-  const filePath = path.join(uploadDir, type, filename);
+  const key = `${type}/${filename}`;
 
   try {
-    const stats = await fs.promises.stat(filePath);
-    const metadata = await sharp(filePath).metadata();
+    const metadata = await r2Storage.getImageMetadata(key);
 
     res.json({
       data: {
         filename,
-        size: stats.size,
-        uploadTime: stats.birthtime,
-        dimensions: {
-          width: metadata.width,
-          height: metadata.height
-        },
-        format: metadata.format
+        ...metadata
       }
     });
   } catch (error) {
-    if ((error as any).code === 'ENOENT') {
-      return res.status(404).json({
-        error: 'File not found',
-        code: 'FILE_NOT_FOUND'
-      });
-    }
-    
     console.error('File info error:', error);
-    res.status(500).json({
-      error: 'Failed to get file info',
-      code: 'INFO_ERROR'
+    res.status(404).json({
+      error: 'File not found',
+      code: 'FILE_NOT_FOUND'
     });
   }
 }));

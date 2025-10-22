@@ -5,7 +5,7 @@ import { logger } from '../utils/monitoring';
 
 // 通用验证中间件
 export function validate(schema: Joi.Schema) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const { error, value } = schema.validate(req.body, {
       abortEarly: false,
       stripUnknown: true
@@ -174,7 +174,7 @@ export const schemas = {
 };
 
 // SQL注入防护
-export function preventSQLInjection(req: Request, res: Response, next: NextFunction) {
+export function preventSQLInjection(req: Request, res: Response, next: NextFunction): void {
   const dangerousPatterns = [
     /(\b(UNION|SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)/gi,
     /(--|\/\*|\*\/|;|'|")/g
@@ -233,9 +233,10 @@ export function validateFileUpload(allowedTypes: string[], maxSize: number = 5 *
       return next();
     }
 
-    const files = req.files ? (Array.isArray(req.files) ? req.files : Object.values(req.files).flat()) : [req.file];
-    
+    const files = req.files ? (Array.isArray(req.files) ? req.files : Object.values(req.files).flat()) : (req.file ? [req.file] : []);
+
     for (const file of files) {
+      if (!file) continue; // Skip if file is undefined
       // 检查文件类型
       if (!allowedTypes.includes(file.mimetype)) {
         return res.status(400).json({

@@ -7,7 +7,7 @@ import Joi from 'joi';
 const router = express.Router();
 
 // 获取当前用户信息
-router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   
   const user = await prisma.user.findUnique({
@@ -26,8 +26,8 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
       createdAt: true,
       _count: {
         select: {
-          likedSites: true,
-          bookmarks: true,
+          websiteLikes: true,
+          userBookmarks: true,
           websites: {
             where: {
               status: 'APPROVED',
@@ -52,21 +52,17 @@ router.get('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
 }));
 
 // 获取用户收藏的作品
-router.get('/me/bookmarks', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/me/bookmarks', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 12, 50);
   const skip = (page - 1) * pageSize;
-  
-  const [bookmarks, total] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        bookmarks: {
-          where: {
-            status: 'APPROVED',
-            deletedAt: null
-          },
+
+  const [bookmarksData, total] = await Promise.all([
+    prisma.bookmark.findMany({
+      where: { userId },
+      include: {
+        website: {
           include: {
             author: {
               select: {
@@ -92,50 +88,59 @@ router.get('/me/bookmarks', authenticate, asyncHandler(async (req: Authenticated
                 icon: true,
                 color: true
               }
-            },
-            likedBy: {
-              where: { id: userId },
-              select: { id: true }
-            },
-            bookmarkedBy: {
-              where: { id: userId },
-              select: { id: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: pageSize
-        }
-      }
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        _count: {
-          select: {
-            bookmarks: {
-              where: {
-                status: 'APPROVED',
-                deletedAt: null
-              }
             }
           }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: pageSize
+    }),
+    prisma.bookmark.count({
+      where: {
+        userId,
+        website: {
+          status: 'APPROVED',
+          deletedAt: null
         }
       }
     })
   ]);
 
-  if (!bookmarks || !total) {
-    return res.status(404).json({
-      error: 'User not found',
-      code: 'USER_NOT_FOUND'
+  // Filter websites that meet the criteria
+  const websites = bookmarksData
+    .filter(b => b.website && b.website.status === 'APPROVED' && b.website.deletedAt === null)
+    .map(b => b.website);
+
+  if (websites.length === 0) {
+    return res.json({
+      data: [],
+      meta: {
+        pagination: {
+          page,
+          pageSize,
+          pageCount: 0,
+          total: 0
+        }
+      }
     });
   }
-  
-  const websitesWithUserData = bookmarks.bookmarks.map((website: any) => ({
+
+  const websiteIds = websites.map(w => w.id);
+  const likes = await prisma.websiteLike.findMany({
+    where: {
+      userId,
+      websiteId: { in: websiteIds }
+    },
+    select: { websiteId: true }
+  });
+
+  const likedIds = new Set(likes.map(l => l.websiteId));
+
+  const websitesWithUserData = websites.map((website: any) => ({
     ...website,
-    isLiked: website.likedBy && website.likedBy.length > 0,
-    isBookmarked: true // 这是收藏列表，所以默认为true
+    isLiked: likedIds.has(website.id),
+    isBookmarked: true
   }));
 
   res.json({
@@ -144,29 +149,25 @@ router.get('/me/bookmarks', authenticate, asyncHandler(async (req: Authenticated
       pagination: {
         page,
         pageSize,
-        pageCount: Math.ceil(total._count.bookmarks / pageSize),
-        total: total._count.bookmarks
+        pageCount: Math.ceil(total / pageSize),
+        total
       }
     }
   });
 }));
 
 // 获取用户点赞的作品
-router.get('/me/likes', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/me/likes', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 12, 50);
   const skip = (page - 1) * pageSize;
-  
-  const [likes, total] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        likedSites: {
-          where: {
-            status: 'APPROVED',
-            deletedAt: null
-          },
+
+  const [likesData, total] = await Promise.all([
+    prisma.websiteLike.findMany({
+      where: { userId },
+      include: {
+        website: {
           include: {
             author: {
               select: {
@@ -192,50 +193,59 @@ router.get('/me/likes', authenticate, asyncHandler(async (req: AuthenticatedRequ
                 icon: true,
                 color: true
               }
-            },
-            likedBy: {
-              where: { id: userId },
-              select: { id: true }
-            },
-            bookmarkedBy: {
-              where: { id: userId },
-              select: { id: true }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: pageSize
-        }
-      }
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        _count: {
-          select: {
-            likedSites: {
-              where: {
-                status: 'APPROVED',
-                deletedAt: null
-              }
             }
           }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: pageSize
+    }),
+    prisma.websiteLike.count({
+      where: {
+        userId,
+        website: {
+          status: 'APPROVED',
+          deletedAt: null
         }
       }
     })
   ]);
 
-  if (!likes || !total) {
-    return res.status(404).json({
-      error: 'User not found',
-      code: 'USER_NOT_FOUND'
+  // Filter websites that meet the criteria
+  const websites = likesData
+    .filter(l => l.website && l.website.status === 'APPROVED' && l.website.deletedAt === null)
+    .map(l => l.website);
+
+  if (websites.length === 0) {
+    return res.json({
+      data: [],
+      meta: {
+        pagination: {
+          page,
+          pageSize,
+          pageCount: 0,
+          total: 0
+        }
+      }
     });
   }
-  
-  const websitesWithUserData = likes.likedSites.map((website: any) => ({
+
+  const websiteIds = websites.map(w => w.id);
+  const bookmarks = await prisma.bookmark.findMany({
+    where: {
+      userId,
+      websiteId: { in: websiteIds }
+    },
+    select: { websiteId: true }
+  });
+
+  const bookmarkedIds = new Set(bookmarks.map(b => b.websiteId));
+
+  const websitesWithUserData = websites.map((website: any) => ({
     ...website,
-    isLiked: true, // 这是点赞列表，所以默认为true
-    isBookmarked: website.bookmarkedBy && website.bookmarkedBy.length > 0
+    isLiked: true,
+    isBookmarked: bookmarkedIds.has(website.id)
   }));
 
   res.json({
@@ -244,15 +254,15 @@ router.get('/me/likes', authenticate, asyncHandler(async (req: AuthenticatedRequ
       pagination: {
         page,
         pageSize,
-        pageCount: Math.ceil(total._count.likedSites / pageSize),
-        total: total._count.likedSites
+        pageCount: Math.ceil(total / pageSize),
+        total
       }
     }
   });
 }));
 
 // 获取用户提交的作品
-router.get('/me/websites', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/me/websites', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 12, 50);
@@ -298,14 +308,6 @@ router.get('/me/websites', authenticate, asyncHandler(async (req: AuthenticatedR
             icon: true,
             color: true
           }
-        },
-        likedBy: {
-          where: { id: userId },
-          select: { id: true }
-        },
-        bookmarkedBy: {
-          where: { id: userId },
-          select: { id: true }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -314,11 +316,33 @@ router.get('/me/websites', authenticate, asyncHandler(async (req: AuthenticatedR
     }),
     prisma.website.count({ where })
   ]);
-  
+
+  // Get user interactions for these websites
+  const websiteIds = websites.map(w => w.id);
+  const [likes, bookmarks] = await Promise.all([
+    prisma.websiteLike.findMany({
+      where: {
+        userId,
+        websiteId: { in: websiteIds }
+      },
+      select: { websiteId: true }
+    }),
+    prisma.bookmark.findMany({
+      where: {
+        userId,
+        websiteId: { in: websiteIds }
+      },
+      select: { websiteId: true }
+    })
+  ]);
+
+  const likedIds = new Set(likes.map(l => l.websiteId));
+  const bookmarkedIds = new Set(bookmarks.map(b => b.websiteId));
+
   const websitesWithUserData = websites.map((website: any) => ({
     ...website,
-    isLiked: website.likedBy && website.likedBy.length > 0,
-    isBookmarked: website.bookmarkedBy && website.bookmarkedBy.length > 0
+    isLiked: likedIds.has(website.id),
+    isBookmarked: bookmarkedIds.has(website.id)
   }));
   
   res.json({
@@ -335,7 +359,7 @@ router.get('/me/websites', authenticate, asyncHandler(async (req: AuthenticatedR
 }));
 
 // 获取特定用户信息及其作品
-router.get('/:username', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:username', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { username } = req.params;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 12, 50);
@@ -427,40 +451,34 @@ router.get('/:username', asyncHandler(async (req: Request, res: Response) => {
   // 添加用户交互信息（如果访客已登录）
   const userId = (req as AuthenticatedRequest).user?.id;
   let websitesWithUserData = websites;
-  
+
   if (userId) {
-    websitesWithUserData = await Promise.all(
-      websites.map(async (website: any) => {
-        const [likeRecord, bookmarkRecord] = await Promise.all([
-          prisma.user.findFirst({
-            where: {
-              id: userId,
-              likedSites: {
-                some: {
-                  id: website.id
-                }
-              }
-            }
-          }),
-          prisma.user.findFirst({
-            where: {
-              id: userId,
-              bookmarks: {
-                some: {
-                  id: website.id
-                }
-              }
-            }
-          })
-        ]);
-        
-        return {
-          ...website,
-          isLiked: !!likeRecord,
-          isBookmarked: !!bookmarkRecord
-        };
+    const websiteIds = websites.map(w => w.id);
+    const [likes, bookmarks] = await Promise.all([
+      prisma.websiteLike.findMany({
+        where: {
+          userId,
+          websiteId: { in: websiteIds }
+        },
+        select: { websiteId: true }
+      }),
+      prisma.bookmark.findMany({
+        where: {
+          userId,
+          websiteId: { in: websiteIds }
+        },
+        select: { websiteId: true }
       })
-    );
+    ]);
+
+    const likedIds = new Set(likes.map(l => l.websiteId));
+    const bookmarkedIds = new Set(bookmarks.map(b => b.websiteId));
+
+    websitesWithUserData = websites.map((website: any) => ({
+      ...website,
+      isLiked: likedIds.has(website.id),
+      isBookmarked: bookmarkedIds.has(website.id)
+    }));
   }
 
   res.json({
@@ -480,7 +498,7 @@ router.get('/:username', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // 更新用户个人信息
-router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   
   const schema = Joi.object({
@@ -523,7 +541,7 @@ router.put('/me', authenticate, asyncHandler(async (req: AuthenticatedRequest, r
 }));
 
 // 关注用户
-router.post('/:userId/follow', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/:userId/follow', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { userId } = req.params;
   const followerId = req.user!.id;
   const targetUserId = parseInt(userId);
@@ -589,7 +607,7 @@ router.post('/:userId/follow', authenticate, asyncHandler(async (req: Authentica
 }));
 
 // 取消关注用户
-router.delete('/:userId/follow', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:userId/follow', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { userId } = req.params;
   const followerId = req.user!.id;
   const targetUserId = parseInt(userId);
@@ -634,7 +652,7 @@ router.delete('/:userId/follow', authenticate, asyncHandler(async (req: Authenti
 }));
 
 // 获取用户关注列表
-router.get('/:userId/following', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:userId/following', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { userId } = req.params;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 50);
@@ -699,7 +717,7 @@ router.get('/:userId/following', asyncHandler(async (req: Request, res: Response
 }));
 
 // 获取用户粉丝列表
-router.get('/:userId/followers', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:userId/followers', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { userId } = req.params;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 20, 50);
@@ -764,7 +782,7 @@ router.get('/:userId/followers', asyncHandler(async (req: Request, res: Response
 }));
 
 // 检查关注状态
-router.get('/:userId/follow-status', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/:userId/follow-status', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { userId } = req.params;
   const currentUserId = req.user!.id;
   const targetUserId = parseInt(userId);
@@ -796,7 +814,7 @@ router.get('/:userId/follow-status', authenticate, asyncHandler(async (req: Auth
 }));
 
 // 获取关注用户的最新作品动态
-router.get('/me/following-feed', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/me/following-feed', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const page = parseInt(req.query.page as string) || 1;
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 10, 50);
@@ -839,18 +857,10 @@ router.get('/me/following-feed', authenticate, asyncHandler(async (req: Authenti
             color: true
           }
         },
-        likedBy: {
-          where: { id: userId },
-          select: { id: true }
-        },
-        bookmarkedBy: {
-          where: { id: userId },
-          select: { id: true }
-        },
         _count: {
           select: {
             comments: true,
-            likedBy: true
+            websiteLikes: true
           }
         }
       },
@@ -873,10 +883,32 @@ router.get('/me/following-feed', authenticate, asyncHandler(async (req: Authenti
     })
   ]);
 
+  // Get user interactions for these websites
+  const websiteIds = websites.map(w => w.id);
+  const [likes, bookmarks] = await Promise.all([
+    prisma.websiteLike.findMany({
+      where: {
+        userId,
+        websiteId: { in: websiteIds }
+      },
+      select: { websiteId: true }
+    }),
+    prisma.bookmark.findMany({
+      where: {
+        userId,
+        websiteId: { in: websiteIds }
+      },
+      select: { websiteId: true }
+    })
+  ]);
+
+  const likedIds = new Set(likes.map(l => l.websiteId));
+  const bookmarkedIds = new Set(bookmarks.map(b => b.websiteId));
+
   const websitesWithUserData = websites.map((website: any) => ({
     ...website,
-    isLiked: website.likedBy && website.likedBy.length > 0,
-    isBookmarked: website.bookmarkedBy && website.bookmarkedBy.length > 0
+    isLiked: likedIds.has(website.id),
+    isBookmarked: bookmarkedIds.has(website.id)
   }));
 
   res.json({

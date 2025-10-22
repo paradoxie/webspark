@@ -5,7 +5,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 const router = Router();
 
 // 获取所有标签
-router.get('/', asyncHandler(async (req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const tags = await prisma.tag.findMany({
     include: {
       _count: {
@@ -31,7 +31,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // 按slug获取单个标签
-router.get('/:slug', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:slug', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { slug } = req.params;
   
   const tag = await prisma.tag.findUnique({

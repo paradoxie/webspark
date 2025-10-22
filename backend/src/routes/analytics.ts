@@ -453,7 +453,7 @@ router.get('/user-activity', authenticate, asyncHandler(async (req: Authenticate
 }));
 
 // 获取网站排行榜
-router.get('/website-rankings', asyncHandler(async (req: Request, res: Response) => {
+router.get('/website-rankings', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { period = '30d', sortBy = 'engagement' } = req.query;
   
   // 验证输入参数

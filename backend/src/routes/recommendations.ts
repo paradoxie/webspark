@@ -76,7 +76,7 @@ const validateTimeRange = (timeRange: any): 'day' | 'week' | 'month' => {
 router.get('/personalized', 
   authenticate, 
   rateLimit(30, 60000), // 每分钟最多30次请求
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
     const limit = validateLimit(req.query.limit);
     const excludeAuthored = req.query.excludeAuthored !== 'false';
@@ -126,7 +126,7 @@ router.get('/personalized',
 router.get('/similar-users', 
   authenticate, 
   rateLimit(20, 60000), // 每分钟最多20次请求
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
     const limit = validateLimit(req.query.limit);
 
@@ -164,7 +164,7 @@ router.get('/similar-users',
 router.get('/trending', 
   optionalAuth, 
   rateLimit(60, 60000), // 每分钟最多60次请求（公共接口）
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user?.id;
     const limit = validateLimit(req.query.limit);
     const timeRange = validateTimeRange(req.query.timeRange);
@@ -205,7 +205,7 @@ router.get('/trending',
 router.get('/hybrid', 
   authenticate, 
   rateLimit(15, 60000), // 每分钟最多15次请求
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
     const limit = validateLimit(req.query.limit);
 
@@ -244,7 +244,7 @@ router.get('/hybrid',
 router.get('/details', 
   optionalAuth, 
   rateLimit(100, 60000), // 每分钟最多100次请求
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const websiteIds = req.query.ids as string;
     const userId = req.user?.id;
 
@@ -404,7 +404,7 @@ router.get('/details',
 router.post('/feedback', 
   authenticate, 
   rateLimit(10, 60000), // 每分钟最多10次反馈
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const { websiteId, recommendationType, rating, feedback, context } = req.body;
     const userId = req.user!.id;
 
@@ -551,7 +551,7 @@ router.get('/stats',
   authenticate,
   // requireAdmin, // 需要管理员权限
   rateLimit(5, 60000),
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const stats = await Promise.all([
         // 各类型推荐请求数量

@@ -41,7 +41,7 @@ afterEach(async () => {
 // 全局清理
 afterAll(async () => {
   await prisma.$disconnect();
-  await cache.disconnect();
+  await cache.close();
 });
 
 // 测试助手函数
@@ -50,6 +50,7 @@ export const createTestUser = async (data?: Partial<any>) => {
     data: {
       email: data?.email || 'test@example.com',
       username: data?.username || 'testuser',
+      githubId: data?.githubId || `test_github_${Date.now()}`,
       name: data?.name || 'Test User',
       role: data?.role || 'USER',
       ...data

@@ -116,7 +116,7 @@ class LogContext {
 
   setRequestContext(req: Request) {
     this.context = {
-      requestId: req.id,
+      requestId: (req as any).id || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       method: req.method,
       url: req.url,
       ip: req.ip,
@@ -288,7 +288,7 @@ export const logAnalyzer = {
       timeRange: `Last ${hours} hours`,
       totalErrors: Object.values(errors).reduce((sum, count) => sum + count, 0),
       errorTypes: Object.entries(errors)
-        .sort(([, a], [, b]) => b - a)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
         .slice(0, 10)
         .map(([type, count]) => ({ type, count }))
     };

@@ -246,11 +246,16 @@ export default function TagWebsitesList({
                     <a
                       href={website.url}
                       target="_blank"
-                      rel="noopener noreferrer"
+                      rel={website.likeCount >= 50 || website.featured ? 'noopener' : website.likeCount >= 10 ? 'noopener ugc' : 'noopener nofollow ugc'}
                       className="flex-1 bg-slate-100 text-slate-700 text-center py-2 px-4 rounded-md hover:bg-slate-200 transition-colors text-sm font-medium"
                       onClick={() => {
-                        // 增加浏览量
+                        // 增加浏览量和点击追踪
                         fetch(`/api/websites/${website.id}/view`, { method: 'POST' }).catch(() => {})
+                        fetch(`/api/websites/${website.id}/track-click`, { 
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ linkType: 'main' })
+                        }).catch(() => {})
                       }}
                     >
                       访问网站

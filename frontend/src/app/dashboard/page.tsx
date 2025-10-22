@@ -291,7 +291,8 @@ export default function DashboardPage() {
               { id: 'overview', label: '概览', icon: '📊' },
               { id: 'works', label: '我的作品', icon: '🎨' },
               { id: 'bookmarks', label: '我的收藏', icon: '🔖' },
-              { id: 'achievements', label: '成就', icon: '🏆' }
+              { id: 'achievements', label: '成就', icon: '🏆' },
+              { id: 'seo', label: 'SEO价值', icon: '🚀' }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -639,6 +640,139 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* SEO价值页面 */}
+        {activeTab === 'seo' && (
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-slate-800 mb-2">🚀 SEO价值中心</h2>
+              <p className="text-slate-600">了解你的作品在WebSpark获得的SEO价值</p>
+            </div>
+
+            {/* SEO统计卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg">
+                    🔗
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-slate-600 text-sm font-medium">DoFollow链接</p>
+                  <p className="text-3xl font-bold text-slate-800">
+                    {userWorks.filter(w => w.status === 'APPROVED' && (w.likeCount >= 50 || w.featured)).length}
+                  </p>
+                  <p className="text-xs text-green-600">完全传递SEO权重</p>
+                </div>
+              </div>
+
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg">
+                    📈
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-slate-600 text-sm font-medium">总外链点击</p>
+                  <p className="text-3xl font-bold text-slate-800">0</p>
+                  <p className="text-xs text-blue-600">来自WebSpark的流量</p>
+                </div>
+              </div>
+
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-white text-xl shadow-lg">
+                    💰
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-slate-600 text-sm font-medium">SEO价值估算</p>
+                  <p className="text-3xl font-bold text-slate-800">
+                    ${userWorks.filter(w => w.status === 'APPROVED' && (w.likeCount >= 50 || w.featured)).length * 200}
+                  </p>
+                  <p className="text-xs text-purple-600">相当于付费SEO服务</p>
+                </div>
+              </div>
+            </div>
+
+            {/* 作品SEO状态列表 */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-slate-200 shadow-lg">
+              <h3 className="text-xl font-bold text-slate-800 mb-6">作品SEO状态</h3>
+              <div className="space-y-4">
+                {userWorks.filter(w => w.status === 'APPROVED').map((work) => {
+                  const isDoFollow = work.likeCount >= 50 || work.featured;
+                  const isUGC = work.likeCount >= 10 && !isDoFollow;
+                  const seoType = isDoFollow ? 'DoFollow' : isUGC ? 'UGC' : 'NoFollow';
+                  const seoColor = isDoFollow ? 'text-green-600 bg-green-100' : isUGC ? 'text-blue-600 bg-blue-100' : 'text-slate-600 bg-slate-100';
+                  
+                  return (
+                    <div key={work.id} className="flex items-center justify-between p-4 rounded-xl hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center space-x-4">
+                        <img
+                          src={work.screenshot || '/placeholder.png'}
+                          alt={work.title}
+                          className="w-12 h-12 rounded-lg object-cover"
+                        />
+                        <div>
+                          <p className="font-medium text-slate-800">{work.title}</p>
+                          <div className="flex items-center space-x-4 text-sm text-slate-600 mt-1">
+                            <span>{work.likeCount} 赞</span>
+                            <span>{work.viewCount} 浏览</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${seoColor}`}>
+                          {seoType}
+                        </span>
+                        {isDoFollow && (
+                          <span className="text-sm text-green-600 font-medium">
+                            +$200 价值
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* SEO提升建议 */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-200">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">💡 如何提升SEO价值</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-start space-x-3">
+                  <span className="text-2xl">👍</span>
+                  <div>
+                    <p className="font-medium text-slate-800">获得更多点赞</p>
+                    <p className="text-sm text-slate-600">50个赞以上的作品将获得DoFollow链接</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <span className="text-2xl">⭐</span>
+                  <div>
+                    <p className="font-medium text-slate-800">申请精选推荐</p>
+                    <p className="text-sm text-slate-600">精选作品自动获得DoFollow链接</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <span className="text-2xl">📝</span>
+                  <div>
+                    <p className="font-medium text-slate-800">优化作品描述</p>
+                    <p className="text-sm text-slate-600">完善的描述有助于搜索引擎理解</p>
+                  </div>
+                </div>
+                <div className="flex items-start space-x-3">
+                  <span className="text-2xl">🏷️</span>
+                  <div>
+                    <p className="font-medium text-slate-800">使用准确标签</p>
+                    <p className="text-sm text-slate-600">标签有助于提高内容相关性</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

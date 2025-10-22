@@ -25,7 +25,7 @@ const advancedSearchSchema = Joi.object({
 });
 
 // 高级搜索
-router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
+router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Response): Promise<void> => {
   // 验证查询参数
   const { error, value } = advancedSearchSchema.validate(req.query);
   
@@ -286,7 +286,7 @@ router.get('/advanced', optionalAuth, asyncHandler(async (req: Request, res: Res
 }));
 
 // 搜索建议（自动完成）
-router.get('/suggestions', asyncHandler(async (req: Request, res: Response) => {
+router.get('/suggestions', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { query, type = 'all' } = req.query;
 
   if (!query || (query as string).length < 2) {
@@ -371,7 +371,7 @@ router.get('/suggestions', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // 热门搜索词
-router.get('/trending', asyncHandler(async (req: Request, res: Response) => {
+router.get('/trending', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   try {
     // 获取最近30天最受欢迎的标签
     const popularTags = await prisma.tag.findMany({
@@ -448,7 +448,7 @@ router.get('/trending', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // 保存搜索条件
-router.post('/saved-searches', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/saved-searches', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const schema = Joi.object({
@@ -513,7 +513,7 @@ router.post('/saved-searches', authenticate, asyncHandler(async (req: Authentica
 }));
 
 // 获取用户的保存搜索列表
-router.get('/saved-searches', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/saved-searches', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const savedSearches = await prisma.savedSearch.findMany({
@@ -532,7 +532,7 @@ router.get('/saved-searches', authenticate, asyncHandler(async (req: Authenticat
 }));
 
 // 更新保存的搜索
-router.put('/saved-searches/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/saved-searches/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const searchId = parseInt(req.params.id);
 
@@ -598,7 +598,7 @@ router.put('/saved-searches/:id', authenticate, asyncHandler(async (req: Authent
 }));
 
 // 删除保存的搜索
-router.delete('/saved-searches/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/saved-searches/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const searchId = parseInt(req.params.id);
 
@@ -630,7 +630,7 @@ router.delete('/saved-searches/:id', authenticate, asyncHandler(async (req: Auth
 }));
 
 // 记录搜索历史
-router.post('/search-history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/search-history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const schema = Joi.object({
@@ -702,7 +702,7 @@ router.post('/search-history', authenticate, asyncHandler(async (req: Authentica
 }));
 
 // 获取搜索历史
-router.get('/search-history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/search-history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const page = parseInt(req.query.page as string) || 1;
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
@@ -734,7 +734,7 @@ router.get('/search-history', authenticate, asyncHandler(async (req: Authenticat
 }));
 
 // 清空搜索历史
-router.delete('/search-history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/search-history', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   await prisma.searchHistory.deleteMany({
@@ -747,7 +747,7 @@ router.delete('/search-history', authenticate, asyncHandler(async (req: Authenti
 }));
 
 // 删除特定搜索历史记录
-router.delete('/search-history/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/search-history/:id', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const historyId = parseInt(req.params.id);
 

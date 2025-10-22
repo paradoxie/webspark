@@ -20,7 +20,7 @@ export function queryOptimizer(req: Request, res: Response, next: NextFunction) 
     performanceMonitor.startTimer(label);
     
     try {
-      const result = await originalQuery.apply(prisma, args);
+      const result = await originalQuery.apply(prisma, args as [query: any, ...values: any[]]);
       const duration = performanceMonitor.endTimer(label);
       
       // 记录慢查询

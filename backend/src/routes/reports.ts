@@ -13,7 +13,7 @@ const createReportSchema = Joi.object({
 });
 
 // 提交举报
-router.post('/', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { error, value } = createReportSchema.validate(req.body);
   
   if (error) {

@@ -308,7 +308,7 @@ export class OptimisticLock {
       );
       
       if (updated) {
-        return updated;
+        return updated as T;
       }
       
       // 版本冲突，重试
@@ -338,9 +338,7 @@ export class DataValidator {
       // 检查孤立的记录
       const orphanedComments = await prisma.comment.count({
         where: {
-          website: {
-            is: null
-          }
+          website: undefined
         }
       });
       
@@ -353,8 +351,8 @@ export class DataValidator {
         include: {
           _count: {
             select: {
-              likedBy: true,
-              bookmarkedBy: true
+              websiteLikes: true,
+              bookmarks: true
             }
           }
         }
@@ -416,9 +414,7 @@ export class DataValidator {
       // 清理孤立记录
       const deletedOrphans = await prisma.comment.deleteMany({
         where: {
-          website: {
-            is: null
-          }
+          website: undefined
         }
       });
       

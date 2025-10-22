@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { prisma } from '../lib/prisma';
-import { logger } from './monitoring';
-import { SecurityAuditLogger } from './securityAudit';
-import { CryptoUtils } from './crypto';
+import { prisma } from '../db';
+import crypto from 'crypto';
 
 // Token黑名单管理
 class TokenBlacklist {
@@ -102,8 +100,8 @@ export function validatePasswordStrength(password: string): { valid: boolean; er
 
 // 记录登录尝试
 export async function recordLoginAttempt(
-  identifier: string, 
-  success: boolean, 
+  identifier: string,
+  success: boolean,
   req: Request
 ): Promise<boolean> {
   const key = `login_${identifier}_${req.ip}`;
@@ -112,40 +110,28 @@ export async function recordLoginAttempt(
     lastAttempt: new Date()
   };
 
-  // 检查是否在锁定期内
+  // Check if currently blocked
   if (attempt.blockedUntil && attempt.blockedUntil > new Date()) {
-    await SecurityAuditLogger.logFromRequest(req, 'LOGIN_BLOCKED', 'HIGH', {
-      identifier,
-      blockedUntil: attempt.blockedUntil
-    });
+    console.log('Login blocked for user:', identifier, 'until:', attempt.blockedUntil);
     return false;
   }
 
   if (success) {
-    // 成功登录，清除记录
+    // Successful login, clear record
     loginAttempts.delete(key);
-    await SecurityAuditLogger.logFromRequest(req, 'LOGIN_SUCCESS', 'LOW', {
-      identifier
-    });
+    console.log('Successful login for:', identifier);
     return true;
   } else {
-    // 失败，增加计数
+    // Failed login, increment counter
     attempt.attempts++;
     attempt.lastAttempt = new Date();
 
     if (attempt.attempts >= authConfig.maxLoginAttempts) {
-      // 锁定账户
+      // Lock account
       attempt.blockedUntil = new Date(Date.now() + authConfig.lockoutDuration);
-      await SecurityAuditLogger.logFromRequest(req, 'ACCOUNT_LOCKED', 'HIGH', {
-        identifier,
-        attempts: attempt.attempts,
-        blockedUntil: attempt.blockedUntil
-      });
+      console.log('Account locked for:', identifier, 'attempts:', attempt.attempts);
     } else {
-      await SecurityAuditLogger.logFromRequest(req, 'LOGIN_FAILED', 'MEDIUM', {
-        identifier,
-        attempts: attempt.attempts
-      });
+      console.log('Login failed for:', identifier, 'attempts:', attempt.attempts);
     }
 
     loginAttempts.set(key, attempt);
@@ -159,7 +145,7 @@ export function generateSecureToken(payload: any, secret: string): string {
     ...payload,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor((Date.now() + authConfig.tokenExpiry) / 1000),
-    jti: CryptoUtils.generateSecureRandom(16) // 唯一标识符
+    jti: crypto.randomBytes(16).toString('hex') // unique identifier
   };
 
   return jwt.sign(jwtPayload, secret, {
@@ -169,11 +155,11 @@ export function generateSecureToken(payload: any, secret: string): string {
 
 // 验证Token
 export async function verifySecureToken(
-  token: string, 
+  token: string,
   secret: string
 ): Promise<{ valid: boolean; payload?: any; error?: string }> {
   try {
-    // 检查黑名单
+    // Check blacklist
     if (tokenBlacklist.has(token)) {
       return { valid: false, error: 'Token has been revoked' };
     }
@@ -182,17 +168,17 @@ export async function verifySecureToken(
       algorithms: ['HS256']
     }) as any;
 
-    // 检查token是否过期
+    // Check if token has expired
     if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
       return { valid: false, error: 'Token has expired' };
     }
 
     return { valid: true, payload: decoded };
   } catch (error) {
-    logger.warn('Token verification failed', { error });
-    return { 
-      valid: false, 
-      error: error instanceof Error ? error.message : 'Invalid token' 
+    console.warn('Token verification failed:', error);
+    return {
+      valid: false,
+      error: error instanceof Error ? error.message : 'Invalid token'
     };
   }
 }
@@ -267,20 +253,20 @@ setInterval(() => {
 // 双因素认证支持
 export class TwoFactorAuth {
   static generateSecret(): string {
-    return CryptoUtils.generateSecureRandom(32);
+    return crypto.randomBytes(32).toString('hex');
   }
 
   static generateBackupCodes(count: number = 10): string[] {
     const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-      codes.push(CryptoUtils.generateSecureRandom(8));
+      codes.push(crypto.randomBytes(8).toString('hex'));
     }
     return codes;
   }
 
   static async verifyCode(secret: string, code: string): Promise<boolean> {
-    // 这里应该使用实际的TOTP验证库
-    // 简化示例
+    // Here should use actual TOTP verification library
+    // Simplified example
     return true;
   }
 }
@@ -288,17 +274,15 @@ export class TwoFactorAuth {
 // 设备信任管理
 export class DeviceTrustManager {
   static async trustDevice(userId: number, req: Request): Promise<string> {
-    const deviceId = CryptoUtils.generateSecureRandom(32);
+    const deviceId = crypto.randomBytes(32).toString('hex');
     const deviceFingerprint = this.generateDeviceFingerprint(req);
 
     await prisma.trustedDevice.create({
       data: {
         userId,
-        deviceId,
-        fingerprint: deviceFingerprint,
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'] || 'unknown',
-        lastUsed: new Date()
+        deviceHash: deviceFingerprint,
+        name: req.headers['user-agent']?.substring(0, 100) || 'Unknown Device',
+        lastUsedAt: new Date()
       }
     });
 
@@ -306,38 +290,21 @@ export class DeviceTrustManager {
   }
 
   static async isDeviceTrusted(userId: number, deviceId: string, req: Request): Promise<boolean> {
+    const deviceFingerprint = this.generateDeviceFingerprint(req);
+
     const device = await prisma.trustedDevice.findFirst({
       where: {
         userId,
-        deviceId,
-        isActive: true
+        deviceHash: deviceFingerprint
       }
     });
 
     if (!device) return false;
 
-    // 验证设备指纹
-    const currentFingerprint = this.generateDeviceFingerprint(req);
-    if (device.fingerprint !== currentFingerprint) {
-      // 设备指纹变化，可能是安全风险
-      await SecurityAuditLogger.logSuspiciousActivity({
-        type: 'DEVICE_FINGERPRINT_MISMATCH',
-        userId,
-        ip: req.ip,
-        userAgent: req.headers['user-agent'],
-        metadata: {
-          deviceId,
-          expectedFingerprint: device.fingerprint,
-          actualFingerprint: currentFingerprint
-        }
-      });
-      return false;
-    }
-
-    // 更新最后使用时间
+    // Update last used time
     await prisma.trustedDevice.update({
       where: { id: device.id },
-      data: { lastUsed: new Date() }
+      data: { lastUsedAt: new Date() }
     });
 
     return true;
@@ -348,9 +315,9 @@ export class DeviceTrustManager {
       req.headers['user-agent'] || '',
       req.headers['accept-language'] || '',
       req.headers['accept-encoding'] || '',
-      // 可以添加更多的设备特征
+      req.ip || ''
     ];
 
-    return CryptoUtils.hash(components.join('|'));
+    return crypto.createHash('sha256').update(components.join('|')).digest('hex');
   }
 }

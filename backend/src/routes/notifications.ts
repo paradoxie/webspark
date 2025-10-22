@@ -6,7 +6,7 @@ import { asyncHandler } from '../middleware/errorHandler';
 const router = Router();
 
 // 获取用户的通知列表
-router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const { page = 1, pageSize = 20, unreadOnly = 'false' } = req.query;
   
@@ -68,7 +68,7 @@ router.get('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res
 }));
 
 // 获取未读通知数量
-router.get('/unread-count', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.get('/unread-count', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   
   const unreadCount = await prisma.notification.count({
@@ -84,7 +84,7 @@ router.get('/unread-count', authenticate, asyncHandler(async (req: Authenticated
 }));
 
 // 标记单个通知为已读
-router.put('/:notificationId/read', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:notificationId/read', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { notificationId } = req.params;
   const userId = req.user!.id;
 
@@ -115,7 +115,7 @@ router.put('/:notificationId/read', authenticate, asyncHandler(async (req: Authe
 }));
 
 // 标记所有通知为已读
-router.put('/read-all', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.put('/read-all', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const result = await prisma.notification.updateMany({
@@ -133,7 +133,7 @@ router.put('/read-all', authenticate, asyncHandler(async (req: AuthenticatedRequ
 }));
 
 // 删除单个通知
-router.delete('/:notificationId', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/:notificationId', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { notificationId } = req.params;
   const userId = req.user!.id;
 
@@ -163,7 +163,7 @@ router.delete('/:notificationId', authenticate, asyncHandler(async (req: Authent
 }));
 
 // 清空所有已读通知
-router.delete('/read', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.delete('/read', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const result = await prisma.notification.deleteMany({

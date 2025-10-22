@@ -1,13 +1,45 @@
 import { Router, Request, Response } from 'express';
 import slugify from 'slugify';
 import Joi from 'joi';
-import { prisma } from '../lib/prisma';
+import { prisma } from '../db';
 import { authenticate, optionalAuth, AuthenticatedRequest } from '../middleware/auth';
-import { asyncHandler } from '../middleware/errorHandler';
+import { asyncHandler } from '../utils/asyncHandler';
 import { NotificationService } from '../services/notificationService';
-import { cache, CACHE_KEYS, CACHE_TTL } from '../lib/cache';
+import { writeLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
+
+// 辅助函数：批量获取用户对网站的交互状态
+async function getUserWebsiteInteractions(userId: number, websiteIds: number[]) {
+  if (websiteIds.length === 0) {
+    return {
+      likedIds: new Set<number>(),
+      bookmarkedIds: new Set<number>()
+    };
+  }
+
+  const [likes, bookmarks] = await Promise.all([
+    prisma.websiteLike.findMany({
+      where: {
+        userId,
+        websiteId: { in: websiteIds }
+      },
+      select: { websiteId: true }
+    }),
+    prisma.bookmark.findMany({
+      where: {
+        userId,
+        websiteId: { in: websiteIds }
+      },
+      select: { websiteId: true }
+    })
+  ]);
+
+  return {
+    likedIds: new Set(likes.map(l => l.websiteId)),
+    bookmarkedIds: new Set(bookmarks.map(b => b.websiteId))
+  };
+}
 
 // 验证schemas
 const createWebsiteSchema = Joi.object({
@@ -46,11 +78,11 @@ router.get('/', optionalAuth, asyncHandler(async (req: Request, res: Response) =
   if (search) {
     const searchTerm = search as string;
     where.OR = [
-      { title: { contains: searchTerm, mode: 'insensitive' } },
-      { shortDescription: { contains: searchTerm, mode: 'insensitive' } },
-      { description: { contains: searchTerm, mode: 'insensitive' } },
-      { tags: { some: { name: { contains: searchTerm, mode: 'insensitive' } } } },
-      { author: { name: { contains: searchTerm, mode: 'insensitive' } } }
+      { title: { contains: searchTerm } },
+      { shortDescription: { contains: searchTerm } },
+      { description: { contains: searchTerm } },
+      { tags: { some: { name: { contains: searchTerm } } } },
+      { author: { name: { contains: searchTerm } } }
     ];
   }
 
@@ -126,29 +158,7 @@ router.get('/', optionalAuth, asyncHandler(async (req: Request, res: Response) =
   if (userId) {
     // 一次性查询用户的所有点赞和收藏，避免N+1查询问题
     const websiteIds = websites.map(w => w.id);
-    const [userLikes, userBookmarks] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          likedSites: {
-            where: { id: { in: websiteIds } },
-            select: { id: true }
-          }
-        }
-      }),
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          bookmarks: {
-            where: { id: { in: websiteIds } },
-            select: { id: true }
-          }
-        }
-      })
-    ]);
-
-    const likedIds = new Set(userLikes?.likedSites.map(w => w.id) || []);
-    const bookmarkedIds = new Set(userBookmarks?.bookmarks.map(w => w.id) || []);
+    const { likedIds, bookmarkedIds } = await getUserWebsiteInteractions(userId, websiteIds);
 
     websitesWithUserData = websites.map(website => {
       // 计算分数 (热度)
@@ -193,15 +203,6 @@ router.get('/sorted-list', optionalAuth, asyncHandler(async (req: AuthenticatedR
   const pageSize = Math.min(parseInt(req.query.pageSize as string) || 12, 50);
   const skip = (page - 1) * pageSize;
 
-  // 生成缓存键
-  const cacheKey = `sorted_list_${page}_${pageSize}_${req.user?.id || 'guest'}`;
-
-  // 尝试从缓存获取
-  const cachedResult = await cache.get(CACHE_KEYS.WEBSITE_LIST, cacheKey);
-  if (cachedResult) {
-    return res.json(cachedResult);
-  }
-
   // 获取总数
   const total = await prisma.website.count({
     where: {
@@ -212,7 +213,7 @@ router.get('/sorted-list', optionalAuth, asyncHandler(async (req: AuthenticatedR
 
   // 使用原生SQL计算热度分数
   const websites = await prisma.$queryRaw`
-    SELECT 
+    SELECT
       w.id,
       w.title,
       w.slug,
@@ -223,7 +224,7 @@ router.get('/sorted-list', optionalAuth, asyncHandler(async (req: AuthenticatedR
       w.createdAt,
       (w.likeCount * 5 + UNIX_TIMESTAMP(w.createdAt) / 10000) as score
     FROM websites w
-    WHERE w.status = 'APPROVED' 
+    WHERE w.status = 'APPROVED'
       AND w.deletedAt IS NULL
     ORDER BY score DESC
     LIMIT ${pageSize} OFFSET ${skip}
@@ -249,35 +250,35 @@ router.get('/sorted-list', optionalAuth, asyncHandler(async (req: AuthenticatedR
           slug: true,
           color: true
         }
-      },
-      ...(req.user && {
-        likedBy: {
-          where: { id: req.user.id },
-          select: { id: true }
-        },
-        bookmarkedBy: {
-          where: { id: req.user.id },
-          select: { id: true }
-        }
-      })
+      }
     }
   });
 
   // 合并数据并保持排序
-  const result = websiteIds.map(id => {
+  let result = websiteIds.map(id => {
     const website = fullWebsites.find(w => w.id === id);
     const scoreData = websites.find(w => w.id === id);
     return {
       ...website,
       score: scoreData?.score,
-      isLiked: req.user ? (website as any)?.likedBy?.length > 0 : false,
-      isBookmarked: req.user ? (website as any)?.bookmarkedBy?.length > 0 : false
+      isLiked: false,
+      isBookmarked: false
     };
   });
 
+  // 如果用户已登录，添加交互状态
+  if (req.user) {
+    const { likedIds, bookmarkedIds } = await getUserWebsiteInteractions(req.user.id, websiteIds);
+    result = result.map(website => ({
+      ...website,
+      isLiked: likedIds.has(website.id),
+      isBookmarked: bookmarkedIds.has(website.id)
+    }));
+  }
+
   const pageCount = Math.ceil(total / pageSize);
 
-  const response = {
+  res.json({
     data: result,
     meta: {
       pagination: {
@@ -287,13 +288,7 @@ router.get('/sorted-list', optionalAuth, asyncHandler(async (req: AuthenticatedR
         total
       }
     }
-  };
-
-  // 缓存结果（登录用户缓存时间较短）
-  const ttl = req.user ? CACHE_TTL.SHORT : CACHE_TTL.MEDIUM;
-  await cache.set(CACHE_KEYS.WEBSITE_LIST, cacheKey, response, { ttl });
-
-  res.json(response);
+  });
 }));
 
 // 获取网站统计数据 - 必须在动态路由之前定义
@@ -327,24 +322,19 @@ router.get('/stats', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // 获取单个网站详情
-router.get('/:slugOrId', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { slugOrId } = req.params;
-  const isNumeric = /^\d+$/.test(slugOrId);
-  
-  // 生成缓存键
-  const cacheKey = `detail_${slugOrId}_${req.user?.id || 'guest'}`;
-  
-  // 尝试从缓存获取
-  const cachedWebsite = await cache.get(CACHE_KEYS.WEBSITE_DETAIL, cacheKey);
-  if (cachedWebsite) {
-    return res.json({ data: cachedWebsite });
-  }
+router.get('/:identifier', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { identifier } = req.params;
+
+  // 判断identifier是ID还是slug
+  const isId = /^\d+$/.test(identifier);
 
   const website = await prisma.website.findFirst({
     where: {
-      ...(isNumeric ? { id: parseInt(slugOrId) } : { slug: slugOrId }),
-      status: 'APPROVED',
-      deletedAt: null
+      AND: [
+        isId ? { id: parseInt(identifier) } : { slug: identifier },
+        { deletedAt: null },
+        { status: 'APPROVED' }
+      ]
     },
     include: {
       author: {
@@ -354,17 +344,7 @@ router.get('/:slugOrId', optionalAuth, asyncHandler(async (req: AuthenticatedReq
           name: true,
           avatar: true,
           bio: true,
-          website: true,
-          github: true
-        }
-      },
-      category: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          icon: true,
-          color: true
+          website: true
         }
       },
       tags: {
@@ -374,126 +354,43 @@ router.get('/:slugOrId', optionalAuth, asyncHandler(async (req: AuthenticatedReq
           slug: true,
           color: true
         }
-      },
-      comments: {
-        where: {
-          parentId: null
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              username: true,
-              name: true,
-              avatar: true
-            }
-          },
-          replies: {
-            include: {
-              author: {
-                select: {
-                  id: true,
-                  username: true,
-                  name: true,
-                  avatar: true
-                }
-              }
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      },
-      ...(req.user && {
-        likedBy: {
-          where: { id: req.user.id },
-          select: { id: true }
-        },
-        bookmarkedBy: {
-          where: { id: req.user.id },
-          select: { id: true }
-        }
-      })
+      }
     }
   });
 
   if (!website) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
   }
 
-  // 增加浏览量（异步，不影响响应速度）
-  if (!req.user || req.user.id !== website.authorId) {
-    prisma.website.update({
-      where: { id: website.id },
-      data: { viewCount: { increment: 1 } }
-    }).catch(error => console.error('Failed to increment view count:', error));
-    
-    // 更新浏览量统计缓存
-    await cache.incr(CACHE_KEYS.STATS, `website_${website.id}_views`, CACHE_TTL.VERY_LONG);
-  }
-
-  // 记录浏览历史（如果用户已登录）
-  if (req.user) {
-    try {
-      // 导入记录活动函数
-      const { recordActivity } = await import('./activity');
-      
-      // 记录浏览活动
-      await recordActivity(
-        req.user.id,
-        'WEBSITE_VIEWED' as any,
-        {
-          websiteId: website.id,
-          websiteTitle: website.title,
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent']
-        }
-      );
-
-      // 创建或更新浏览记录
-      await prisma.websiteView.upsert({
-        where: {
-          websiteId_userId: {
-            websiteId: website.id,
-            userId: req.user.id
-          }
-        },
-        update: {
-          viewCount: { increment: 1 },
-          lastViewedAt: new Date()
-        },
-        create: {
-          websiteId: website.id,
-          userId: req.user.id,
-          viewCount: 1
-        }
-      });
-    } catch (error) {
-      console.error('Failed to record view:', error);
-      // 不影响主流程
-    }
-  }
+  // 增加浏览次数
+  await prisma.website.update({
+    where: { id: website.id },
+    data: { viewCount: { increment: 1 } }
+  });
 
   // 添加用户交互状态
-  const websiteWithUserData = {
+  let isLiked = false;
+  let isBookmarked = false;
+  if (req.user) {
+    const { likedIds, bookmarkedIds } = await getUserWebsiteInteractions(req.user.id, [website.id]);
+    isLiked = likedIds.has(website.id);
+    isBookmarked = bookmarkedIds.has(website.id);
+  }
+
+  const result = {
     ...website,
-    isLiked: req.user ? (website as any)?.likedBy?.length > 0 : false,
-    isBookmarked: req.user ? (website as any)?.bookmarkedBy?.length > 0 : false
+    isLiked,
+    isBookmarked
   };
 
-  // 缓存结果
-  const ttl = req.user ? CACHE_TTL.SHORT : CACHE_TTL.MEDIUM;
-  await cache.set(CACHE_KEYS.WEBSITE_DETAIL, cacheKey, websiteWithUserData, { ttl });
-
-  res.json({ data: websiteWithUserData });
+  res.json({ data: result });
 }));
 
-// 提交新网站  
-router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+// 提交新网站（添加速率限制）
+router.post('/', writeLimiter, authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const submitSchema = Joi.object({
     url: Joi.string().uri().required(),
     title: Joi.string().min(5).max(50).required(),
@@ -507,9 +404,9 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
   });
 
   const { error, value } = submitSchema.validate(req.body);
-  
+
   if (error) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: error.details[0].message,
       code: 'VALIDATION_ERROR'
     });
@@ -523,7 +420,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
   });
 
   if (!category) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Invalid category',
       code: 'INVALID_CATEGORY'
     });
@@ -531,14 +428,14 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
 
   // 检查URL是否已存在
   const existingWebsite = await prisma.website.findFirst({
-    where: { 
+    where: {
       url,
-      deletedAt: null 
+      deletedAt: null
     }
   });
 
   if (existingWebsite) {
-    return res.status(409).json({ 
+    return res.status(409).json({
       error: 'This URL has already been submitted',
       code: 'URL_ALREADY_EXISTS'
     });
@@ -597,7 +494,7 @@ router.post('/', authenticate, asyncHandler(async (req: AuthenticatedRequest, re
     }
   });
 
-  res.status(201).json({ 
+  res.status(201).json({
     data: website,
     message: 'Website submitted successfully. It will be reviewed before going live.'
   });
@@ -619,144 +516,92 @@ router.put('/:id/like', authenticate, asyncHandler(async (req: AuthenticatedRequ
   const userId = req.user!.id;
 
   if (isNaN(websiteId)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Invalid website ID',
       code: 'INVALID_WEBSITE_ID'
     });
   }
 
-  // 检查网站是否存在
   const website = await prisma.website.findUnique({
-    where: { 
+    where: {
       id: websiteId,
-      status: 'APPROVED',
-      deletedAt: null 
+      deletedAt: null,
+      status: 'APPROVED'
+    },
+    select: {
+      id: true,
+      authorId: true,
+      likeCount: true
     }
   });
 
   if (!website) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
   }
 
-  try {
-    // 使用事务确保数据一致性
-    const result = await prisma.$transaction(async (tx) => {
-      // 检查是否已经点赞
-      const existingLike = await tx.websiteLike.findUnique({
+  const existingLike = await prisma.websiteLike.findUnique({
+    where: {
+      websiteId_userId: {
+        websiteId,
+        userId
+      }
+    }
+  });
+
+  if (existingLike) {
+    await prisma.$transaction([
+      prisma.websiteLike.delete({
         where: {
           websiteId_userId: {
-            websiteId: websiteId,
-            userId: userId
+            websiteId,
+            userId
           }
         }
-      });
-
-      let isLiked: boolean;
-      let updatedWebsite;
-
-      if (existingLike) {
-        // 取消点赞 - 使用事务确保所有操作成功
-        // 1. 删除WebsiteLike记录
-        await tx.websiteLike.delete({
-          where: {
-            websiteId_userId: {
-              websiteId: websiteId,
-              userId: userId
-            }
-          }
-        });
-
-        // 2. 更新Website的likedBy关系和likeCount
-        updatedWebsite = await tx.website.update({
-          where: { id: websiteId },
-          data: {
-            likedBy: {
-              disconnect: { id: userId }
-            },
-            likeCount: {
-              decrement: 1
-            }
-          },
-          select: {
-            id: true,
-            likeCount: true,
-            authorId: true,
-            title: true
-          }
-        });
-        
-        isLiked = false;
-      } else {
-        // 添加点赞 - 使用事务确保所有操作成功
-        // 1. 创建WebsiteLike记录
-        await tx.websiteLike.create({
-          data: {
-            websiteId: websiteId,
-            userId: userId
-          }
-        });
-
-        // 2. 更新Website的likedBy关系和likeCount
-        updatedWebsite = await tx.website.update({
-          where: { id: websiteId },
-          data: {
-            likedBy: {
-              connect: { id: userId }
-            },
-            likeCount: {
-              increment: 1
-            }
-          },
-          select: {
-            id: true,
-            likeCount: true,
-            authorId: true,
-            title: true
-          }
-        });
-        
-        isLiked = true;
-
-        // 发送通知给作者
-        if (updatedWebsite.authorId !== userId) {
-          await NotificationService.createNotification({
-            userId: updatedWebsite.authorId,
-            type: 'WEBSITE_LIKED',
-            title: '有人点赞了你的作品',
-            message: `你的作品"${updatedWebsite.title}"收到了一个新的点赞！`,
-            websiteId: websiteId
-          });
-        }
-      }
-
-      return { isLiked, likeCount: updatedWebsite.likeCount };
-    });
-
-    const { isLiked, likeCount } = result;
-
-    // 清除相关缓存
-    await Promise.all([
-      cache.deletePattern(`${CACHE_KEYS.WEBSITE_DETAIL}:detail_${websiteId}_*`),
-      cache.deletePattern(`${CACHE_KEYS.WEBSITE_DETAIL}:detail_${website.slug}_*`),
-      cache.deletePattern(`${CACHE_KEYS.WEBSITE_LIST}:*`),
-      cache.deletePattern(`${CACHE_KEYS.POPULAR_WEBSITES}:*`)
+      }),
+      prisma.website.update({
+        where: { id: websiteId },
+        data: { likeCount: { decrement: 1 } }
+      })
     ]);
 
     res.json({
-      success: true,
-      isLiked,
-      likeCount,
-      message: isLiked ? '点赞成功' : '取消点赞成功'
+      message: 'Like removed successfully',
+      action: 'unlike',
+      likeCount: Math.max(0, website.likeCount - 1),
+      isLiked: false
     });
+  } else {
+    await prisma.$transaction([
+      prisma.websiteLike.create({
+        data: {
+          websiteId,
+          userId
+        }
+      }),
+      prisma.website.update({
+        where: { id: websiteId },
+        data: { likeCount: { increment: 1 } }
+      })
+    ]);
 
-  } catch (error) {
-    console.error('Like toggle error:', error);
-    res.status(500).json({ 
-      error: 'Failed to toggle like',
-      code: 'LIKE_TOGGLE_FAILED'
+    try {
+      if (website.authorId !== userId) {
+        const user = req.user!;
+        const likerName = user.name || user.username;
+        await NotificationService.notifyWebsiteLiked(websiteId, likerName);
+      }
+    } catch (notificationError) {
+      console.error('Failed to send like notification:', notificationError);
+    }
+
+    res.json({
+      message: 'Like added successfully',
+      action: 'like',
+      likeCount: website.likeCount + 1,
+      isLiked: true
     });
   }
 }));
@@ -767,116 +612,81 @@ router.put('/:id/bookmark', authenticate, asyncHandler(async (req: Authenticated
   const userId = req.user!.id;
 
   if (isNaN(websiteId)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Invalid website ID',
       code: 'INVALID_WEBSITE_ID'
     });
   }
 
   const website = await prisma.website.findUnique({
-    where: { 
+    where: {
       id: websiteId,
       deletedAt: null,
       status: 'APPROVED'
+    },
+    select: {
+      id: true
     }
   });
 
   if (!website) {
-    return res.status(404).json({ 
+    return res.status(404).json({
       error: 'Website not found',
       code: 'WEBSITE_NOT_FOUND'
     });
   }
 
-  try {
-    // 使用事务确保数据一致性
-    const result = await prisma.$transaction(async (tx) => {
-      // 检查是否已经收藏
-      const existingBookmark = await tx.bookmark.findUnique({
-        where: {
-          websiteId_userId: {
-            websiteId: websiteId,
-            userId: userId
-          }
-        }
-      });
-
-      let isBookmarked: boolean;
-
-      if (existingBookmark) {
-        // 取消收藏 - 使用事务确保所有操作成功
-        // 1. 删除Bookmark记录
-        await tx.bookmark.delete({
-          where: {
-            websiteId_userId: {
-              websiteId: websiteId,
-              userId: userId
-            }
-          }
-        });
-
-        // 2. 更新Website的bookmarkedBy关系
-        await tx.website.update({
-          where: { id: websiteId },
-          data: {
-            bookmarkedBy: {
-              disconnect: { id: userId }
-            }
-          }
-        });
-        
-        isBookmarked = false;
-      } else {
-        // 添加收藏 - 使用事务确保所有操作成功
-        // 1. 创建Bookmark记录
-        await tx.bookmark.create({
-          data: {
-            websiteId: websiteId,
-            userId: userId
-          }
-        });
-
-        // 2. 更新Website的bookmarkedBy关系
-        await tx.website.update({
-          where: { id: websiteId },
-          data: {
-            bookmarkedBy: {
-              connect: { id: userId }
-            }
-          }
-        });
-        
-        isBookmarked = true;
+  const existingBookmark = await prisma.bookmark.findUnique({
+    where: {
+      websiteId_userId: {
+        websiteId,
+        userId
       }
+    }
+  });
 
-      return { isBookmarked };
+  if (existingBookmark) {
+    await prisma.bookmark.delete({
+      where: {
+        websiteId_userId: {
+          websiteId,
+          userId
+        }
+      }
     });
 
     res.json({
-      message: result.isBookmarked ? 'Bookmark added successfully' : 'Bookmark removed successfully',
-      action: result.isBookmarked ? 'bookmark' : 'unbookmark',
-      isBookmarked: result.isBookmarked
+      message: 'Bookmark removed successfully',
+      action: 'unbookmark',
+      isBookmarked: false
     });
-  } catch (error) {
-    console.error('Bookmark toggle error:', error);
-    return res.status(500).json({
-      error: 'Failed to toggle bookmark',
-      code: 'BOOKMARK_TOGGLE_FAILED'
+  } else {
+    await prisma.bookmark.create({
+      data: {
+        websiteId,
+        userId
+      }
+    });
+
+    res.json({
+      message: 'Bookmark added successfully',
+      action: 'bookmark',
+      isBookmarked: true
     });
   }
 }));
 
 // 高级搜索端点
 router.get('/search', optionalAuth, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { 
-    q, 
-    tags, 
-    author, 
-    dateRange = 'all', 
-    sortBy = 'relevance', 
-    featured, 
-    page = 1, 
-    pageSize = 12 
+  const {
+    q,
+    tags,
+    author,
+    dateRange = 'all',
+    sortBy = 'relevance',
+    featured,
+    page = 1,
+    pageSize = 12
   } = req.query;
 
   const skip = (Number(page) - 1) * Number(pageSize);
@@ -1008,17 +818,7 @@ router.get('/search', optionalAuth, asyncHandler(async (req: AuthenticatedReques
             slug: true,
             color: true
           }
-        },
-        ...(req.user && {
-          likedBy: {
-            where: { id: req.user.id },
-            select: { id: true }
-          },
-          bookmarkedBy: {
-            where: { id: req.user.id },
-            select: { id: true }
-          }
-        })
+        }
       },
       orderBy,
       skip,
@@ -1028,11 +828,21 @@ router.get('/search', optionalAuth, asyncHandler(async (req: AuthenticatedReques
   ]);
 
   // 添加用户交互状态
-  const websitesWithUserData = websites.map(website => ({
+  let websitesWithUserData = websites.map(website => ({
     ...website,
-    isLiked: req.user ? (website as any).likedBy?.length > 0 : false,
-    isBookmarked: req.user ? (website as any).bookmarkedBy?.length > 0 : false
+    isLiked: false,
+    isBookmarked: false
   }));
+
+  if (req.user) {
+    const websiteIds = websites.map(w => w.id);
+    const { likedIds, bookmarkedIds } = await getUserWebsiteInteractions(req.user.id, websiteIds);
+    websitesWithUserData = websites.map(website => ({
+      ...website,
+      isLiked: likedIds.has(website.id),
+      isBookmarked: bookmarkedIds.has(website.id)
+    }));
+  }
 
   res.json({
     data: websitesWithUserData,
@@ -1102,29 +912,7 @@ router.get('/featured', optionalAuth, asyncHandler(async (req: Request, res: Res
   if (userId) {
     // 批量查询用户交互以避免N+1问题
     const websiteIds = websites.map(w => w.id);
-    const [userLikes, userBookmarks] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          likedSites: {
-            where: { id: { in: websiteIds } },
-            select: { id: true }
-          }
-        }
-      }),
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          bookmarks: {
-            where: { id: { in: websiteIds } },
-            select: { id: true }
-          }
-        }
-      })
-    ]);
-
-    const likedIds = new Set(userLikes?.likedSites.map(w => w.id) || []);
-    const bookmarkedIds = new Set(userBookmarks?.bookmarks.map(w => w.id) || []);
+    const { likedIds, bookmarkedIds } = await getUserWebsiteInteractions(userId, websiteIds);
 
     websitesWithUserData = websites.map((website) => {
       // 计算分数 (热度)
@@ -1156,4 +944,4 @@ router.get('/featured', optionalAuth, asyncHandler(async (req: Request, res: Res
   });
 }));
 
-export default router; 
+export default router;

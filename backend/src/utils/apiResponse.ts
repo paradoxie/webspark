@@ -40,14 +40,13 @@ export class ApiResponseBuilder {
   /**
    * 错误响应
    */
-  static error(error: string, code?: string, statusCode?: number): ApiResponse {
+  static error(error: string, code?: string): ApiResponse {
     return {
       success: false,
       error,
       code: code || 'ERROR',
       meta: {
-        timestamp: new Date().toISOString(),
-        statusCode
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -161,8 +160,7 @@ export class ApiResponseBuilder {
       error: message || 'Unauthorized access',
       code: 'UNAUTHORIZED',
       meta: {
-        timestamp: new Date().toISOString(),
-        statusCode: 401
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -176,8 +174,7 @@ export class ApiResponseBuilder {
       error: message || 'Forbidden access',
       code: 'FORBIDDEN',
       meta: {
-        timestamp: new Date().toISOString(),
-        statusCode: 403
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -191,8 +188,7 @@ export class ApiResponseBuilder {
       error: `${resource || 'Resource'} not found`,
       code: 'NOT_FOUND',
       meta: {
-        timestamp: new Date().toISOString(),
-        statusCode: 404
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -206,8 +202,7 @@ export class ApiResponseBuilder {
       error: message || 'Resource conflict',
       code: 'CONFLICT',
       meta: {
-        timestamp: new Date().toISOString(),
-        statusCode: 409
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -220,15 +215,14 @@ export class ApiResponseBuilder {
       success: false,
       error: message || 'Internal server error',
       code: 'INTERNAL_ERROR',
-      ...(process.env.NODE_ENV === 'development' && error && { 
+      ...(process.env.NODE_ENV === 'development' && error && {
         data: {
           stack: error.stack,
           details: error
         }
       }),
       meta: {
-        timestamp: new Date().toISOString(),
-        statusCode: 500
+        timestamp: new Date().toISOString()
       }
     };
   }
